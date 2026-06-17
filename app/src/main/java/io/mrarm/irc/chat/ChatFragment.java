@@ -332,9 +332,7 @@ public class ChatFragment extends Fragment implements
 
     @Override
     public void onConnectionInfoChanged(ServerConnectionSession connection) {
-        getActivity().runOnUiThread(() -> {
-            mSendHelper.updateVisibility();
-        });
+        getActivity().runOnUiThread(() -> mSendHelper.updateVisibility());
     }
 
     @Override

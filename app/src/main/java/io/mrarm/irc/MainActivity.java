@@ -110,6 +110,22 @@ public class MainActivity extends ThemedActivity
             new DCCManager.ActivityDialogHandler(this, REQUEST_CODE_DCC_FOLDER_PERMISSION,
                     REQUEST_CODE_DCC_STORAGE_PERMISSION);
 
+    private AlertDialog mNickDialog = null;
+    private ServerConnectionSession mNickDialogSession = null;
+    private final ServerConnectionSession.InfoChangeListener mNickExhaustedListener =
+            connection -> runOnUiThread(() -> {
+                if (connection.isNickExhausted()) {
+                    if (mNickDialog == null || mNickDialogSession != connection) {
+                        if (mNickDialog != null) mNickDialog.dismiss();
+                        showNickUnavailableDialog(connection);
+                    }
+                } else if (mNickDialogSession == connection && mNickDialog != null) {
+                    mNickDialog.dismiss();
+                    mNickDialog = null;
+                    mNickDialogSession = null;
+                }
+            });
+
     private DCCCoordinator dccCoordinator;
     private ActivityResultLauncher<String> dccFilePicker;
 
@@ -159,6 +175,8 @@ public class MainActivity extends ThemedActivity
         if (savedInstanceState == null) {
             handleInitialIntent();
         }
+
+        ServerConnectionManager.getInstance(this).addGlobalConnectionInfoListener(mNickExhaustedListener);
     }
 
     private void setupDCCHandlers() {
@@ -474,7 +492,9 @@ public class MainActivity extends ThemedActivity
     protected void onDestroy() {
         ((IRCApplication) getApplication()).removeExitCallback(this);
         mDrawerHelper.unregisterListeners();
+        ServerConnectionManager.getInstance(this).removeGlobalConnectionInfoListener(mNickExhaustedListener);
         dismissFragmentDialog();
+        if (mNickDialog != null) { mNickDialog.dismiss(); mNickDialog = null; }
         super.onDestroy();
     }
 
@@ -484,6 +504,15 @@ public class MainActivity extends ThemedActivity
         WarningHelper.setActivity(this);
         mDCCDialogHandler.onResume();
         mNavigator.ensureValidConnection(ServerConnectionManager.getInstance(this));
+        // Show nick dialog for any session that failed while the activity was in background
+        if (mNickDialog == null) {
+            for (ServerConnectionSession s : ServerConnectionManager.getInstance(this).getConnections()) {
+                if (s.isNickExhausted()) {
+                    showNickUnavailableDialog(s);
+                    break;
+                }
+            }
+        }
     }
 
     @Override
@@ -551,7 +580,46 @@ public class MainActivity extends ThemedActivity
         });
     }
 
-    @Override
+    private void showNickUnavailableDialog(ServerConnectionSession connection) {
+        View view = LayoutInflater.from(this).inflate(R.layout.dialog_nick_unavailable, null, false);
+        android.widget.TextView reasonView = view.findViewById(R.id.nick_unavailable_reason);
+        android.widget.TextView triedView = view.findViewById(R.id.nick_unavailable_tried);
+        android.widget.EditText input = view.findViewById(R.id.nick_unavailable_input);
+
+        reasonView.setText(connection.getNickExhaustedReason());
+
+        List<String> triedNicks = connection.getNickExhaustedNicks();
+        if (triedNicks != null && !triedNicks.isEmpty())
+            triedView.setText(getString(R.string.nick_unavailable_tried,
+                    android.text.TextUtils.join(", ", triedNicks)));
+        else
+            triedView.setVisibility(View.GONE);
+
+        mNickDialogSession = connection;
+        mNickDialog = new AlertDialog.Builder(this)
+                .setTitle(R.string.nick_unavailable_title)
+                .setView(view)
+                .setPositiveButton(R.string.action_connect, (d, which) -> {
+                    mNickDialog = null;
+                    mNickDialogSession = null;
+                    String nick = input.getText().toString().trim();
+                    if (!nick.isEmpty())
+                        connection.reconnectWithNick(nick);
+                })
+                .setNegativeButton(android.R.string.cancel, (d, which) -> {
+                    mNickDialog = null;
+                    mNickDialogSession = null;
+                    ServerConnectionManager.getInstance(this).removeConnection(connection);
+                })
+                .setOnCancelListener(d -> {
+                    mNickDialog = null;
+                    mNickDialogSession = null;
+                    ServerConnectionManager.getInstance(this).removeConnection(connection);
+                })
+                .create();
+        mNickDialog.show();
+    }
+
     public void dismissFragmentDialog() {
         if (mCurrentDialog != null) {
             InputMethodManager manager = (InputMethodManager) getSystemService(
