@@ -23,4 +23,7 @@ echo "==> Building $FLAVOR…"
 echo "==> Installing APK…"
 adb install -r "$APK_PATH"
 
+echo "==> Launching app…"
+adb shell am start -n "${PKG}/io.mrarm.irc.MainActivity"
+
 echo "==> Done."
