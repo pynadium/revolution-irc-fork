@@ -25,7 +25,7 @@ public class ServerPingTask {
             if (api != null && api instanceof IRCConnection)
                 serversToPing.add((IRCConnection) api);
         }
-        if (serversToPing.size() == 0) {
+        if (serversToPing.isEmpty()) {
             Log.d("ServerPingTask", "No servers to ping");
             cb.onDone();
             return;

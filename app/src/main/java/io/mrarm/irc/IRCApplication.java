@@ -7,6 +7,7 @@ import android.os.SystemClock;
 import android.util.Log;
 
 import androidx.annotation.Keep;
+import androidx.annotation.NonNull;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -200,10 +201,12 @@ public class IRCApplication extends Application implements Application.ActivityL
                 return false;
             }
         }
+
         for (ExitCallback exitCallback : mExitCallbacks){
             exitCallback.logExitCallbak();
             exitCallback.onAppExiting();
         }
+
         for (Activity activity : mActivities)
             activity.finish();
         ServerConnectionManager.destroyInstance();
@@ -251,7 +254,7 @@ public class IRCApplication extends Application implements Application.ActivityL
     }
 
     @Override
-    public void onActivitySaveInstanceState(Activity activity, Bundle outState) {
+    public void onActivitySaveInstanceState(Activity activity, @NonNull Bundle outState) {
         Log.i("[FLOW]", ">>> Activity state saved, IRCApplication.onActivitySaveInstanceState() performed"
                 + activity.getClass().getSimpleName());
     }

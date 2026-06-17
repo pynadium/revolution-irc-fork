@@ -29,7 +29,7 @@ public class ServerConnectionData {
     private final ServerSupportList supportList = new ServerSupportList();
     private ChannelDataStorage channelDataStorage;
 
-    // Domain behaviour component - It defines how the session reacts to protocol input
+    // Domain behavior component - It defines how the session reacts to protocol input
     private CommandHandlerList commandHandlerList = new CommandHandlerList();
 
     // Coordinator/Observer infrastructure

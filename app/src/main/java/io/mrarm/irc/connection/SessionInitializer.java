@@ -1,6 +1,7 @@
 package io.mrarm.irc.connection;
 
 import android.content.Context;
+import android.util.Log;
 
 import io.mrarm.irc.BuildConfig;
 import io.mrarm.irc.DCCManager;
@@ -24,6 +25,7 @@ import io.mrarm.irc.util.IgnoreListMessageFilter;
 
 public class SessionInitializer {
     private final Context context;
+    private static final String TAG = "SESSION INITIALIZER";
 
     public SessionInitializer(Context context) {
         this.context = context;
@@ -88,7 +90,10 @@ public class SessionInitializer {
         );
 
         connection.addDisconnectListener(
-                (conn, reason) -> session.notifyDisconnected()
+                (conn, reason) -> {
+                    Log.d(TAG, "attach(): disconnection listener invoked. session.NotifyDisconnect");
+                    session.notifyDisconnected();
+                }
         );
     }
 }

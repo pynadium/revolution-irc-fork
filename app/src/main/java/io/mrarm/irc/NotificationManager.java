@@ -5,6 +5,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Build;
+import android.util.Log;
 
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
@@ -30,6 +31,7 @@ import io.mrarm.irc.util.WarningHelper;
 public class NotificationManager {
 
     public static final int CHAT_SUMMARY_NOTIFICATION_ID = 101;
+    public static final String TAG = "NotificationManager";
 
     private static final String NOTIFICATION_CHANNEL_GROUP_SYSTEM = "01_system";
     private static final String NOTIFICATION_CHANNEL_GROUP_DEFAULT_RULES = "02_default";
@@ -246,6 +248,7 @@ public class NotificationManager {
     }
 
     public static String getSystemNotificationChannelGroup(Context ctx) {
+        Log.d(TAG, "getSystemNotificationChannelGroup");
         createChannelGroups(ctx);
         return NOTIFICATION_CHANNEL_GROUP_SYSTEM;
     }

@@ -88,6 +88,7 @@ public class MainActivity extends ThemedActivity
     public static final String ARG_CHANNEL_NAME = "channel";
     public static final String ARG_MESSAGE_ID = "message_id";
     public static final String ARG_MANAGE_SERVERS = "manage_servers";
+    private static final String TAG = "[MAIN ACTIVITY]";
 
     private static final int REQUEST_CODE_DCC_FOLDER_PERMISSION = 101;
     private static final int REQUEST_CODE_DCC_STORAGE_PERMISSION = 102;
@@ -139,7 +140,7 @@ public class MainActivity extends ThemedActivity
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        Log.i("[MAIN ACTIVITY]", "onCreate() ");
+        Log.i(TAG, "onCreate() ");
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.activity_main);
@@ -161,6 +162,7 @@ public class MainActivity extends ThemedActivity
     }
 
     private void setupDCCHandlers() {
+        Log.i(TAG, "setupGlobalLinkHandler(): Setting up DCC handlers");
         dccFilePicker = registerForActivityResult(
                 new ActivityResultContracts.GetContent(),
                 uri -> {
@@ -233,82 +235,98 @@ public class MainActivity extends ThemedActivity
     }
 
     private void setupChatActions() {
+        Log.i(TAG, "setupChatActions(): Setting up Chat Actions");
         mChatActions = new ChatOptionsActionHandler(new ChatOptionsActionHandler.Host() {
 
             @Override
             public boolean isChatScreen() {
+                Log.i(TAG, "setupChatActions(): action -> Is Chat Screen? ");
                 return getCurrentFragment() instanceof ChatFragment;
             }
 
             @Override
             public void showJoinChannelDialog() {
+                Log.i(TAG, "setupChatActions(): action -> show Join Channel Dialog ");
                 // move nothing yet: just call existing inline code for now
                 MainActivity.this.showJoinChannelDialog();
             }
 
             @Override
             public void showUserSearchDialog() {
+                Log.i(TAG, "setupChatActions(): action -> show User Search Dialog ");
                 MainActivity.this.showUserSearchDialog();
             }
 
             @Override
             public void partCurrentChannel() {
+                Log.i(TAG, "setupChatActions(): action -> part Current Channel");
                 MainActivity.this.partCurrentChannel();
             }
 
             @Override
             public void pickFileForDccSend() {
+                Log.i(TAG, "setupChatActions(): action -> pick File for DCC send");
                 dccCoordinator.requestFileSend();
             }
 
             @Override
             public void openMembersDrawer() {
+                Log.i(TAG, "setupChatActions(): action -> open Members Drawer");
                 mDrawerLayout.openDrawer(GravityCompat.END);
             }
 
             @Override
             public void openIgnoreList() {
+                Log.i(TAG, "setupChatActions(): action -> open Ignore List");
                 MainActivity.this.openIgnoreList();
             }
 
             @Override
             public void disconnect() {
+                Log.i(TAG, "setupChatActions(): action -> disconnect");
                 ((ChatFragment) getCurrentFragment()).getConnectionInfo().disconnect();
             }
 
             @Override
             public void disconnectAndClose() {
+                Log.i(TAG, "setupChatActions(): action -> disconnect and close");
                 MainActivity.this.disconnectAndClose();
             }
 
             @Override
             public void reconnect() {
+                Log.i(TAG, "setupChatActions(): action -> reconnect");
                 ((ChatFragment) getCurrentFragment()).getConnectionInfo().connect();
             }
 
             @Override
             public void showFormatBar() {
+                Log.i(TAG, "setupChatActions(): action -> show format bar");
                 ((ChatFragment) getCurrentFragment()).getSendMessageHelper().setFormatBarVisible(true);
             }
 
             @Override
             public void openDccTransfers() {
+                Log.i(TAG, "setupChatActions(): action -> open DCC transfer");
                 dccCoordinator.openTransfers();
             }
 
             @Override
             public void openSettings() {
+                Log.i(TAG, "setupChatActions(): action -> open settings");
                 startActivity(new Intent(MainActivity.this, SettingsActivity.class));
             }
 
             @Override
             public void requestExit() {
+                Log.i(TAG, "setupChatActions(): action -> request exit");
                 ((IRCApplication) getApplication()).requestExit();
             }
         });
     }
 
     private void setupGlobalLinkHandler() {
+        Log.i(TAG, "setupGlobalLinkHandler(): Setting up global link handler");
         LinkHelper.setChannelLinkHandler((channel, view) -> {
 
             if (!(getCurrentFragment() instanceof ChatFragment fragment)) {
@@ -348,6 +366,7 @@ public class MainActivity extends ThemedActivity
     }
 
     private void setupNavigator() {
+        Log.i(TAG, "setupNavigator(): Setting up global navigator");
         mNavigator = new MainNavigator(
                 getSupportFragmentManager(),
                 R.id.content_frame,
@@ -357,6 +376,7 @@ public class MainActivity extends ThemedActivity
     }
 
     private void setupDrawer() {
+        Log.i(TAG, "setupDrawer(): Setting up drawer menu");
         mDrawerHelper = new DrawerHelper(this, this);
         mDrawerHelper.registerListeners();
 
@@ -372,6 +392,7 @@ public class MainActivity extends ThemedActivity
     }
 
     private void initializeActivityCore() {
+        Log.i(TAG, "initializeActivityCore(): Initializing core activity");
         mAppExiting = false;
         ((IRCApplication) getApplication()).addExitCallback(this);
         mFakeToolbar = findViewById(R.id.fake_toolbar);
@@ -393,6 +414,7 @@ public class MainActivity extends ThemedActivity
 
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
+        Log.i(TAG, "onConfigurationChanged()");
         super.onConfigurationChanged(newConfig);
         StyledAttributesHelper ta = StyledAttributesHelper.obtainStyledAttributes(this,
                 new int[]{R.attr.actionBarSize});

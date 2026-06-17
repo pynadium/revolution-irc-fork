@@ -38,6 +38,8 @@ public class IRCConnection extends ServerConnectionApi {
     private static final String[] AUTH_COMMAND_PREFIXES = new String[]{"PASS ", "OPER", "PRIVMSG NickServ :IDENTIFY ",
             "NICKSERV IDENTIFY "};
 
+    private static final String TAG = "IRC CONNECTION";
+
     private Charset charset; // Connection configuration state
     private Socket socket; // Transport state - It does indicate connection lifecycle. weather the ir a TCP connection open or not.
     private InputStream socketInputStream; // Transport mechanic - moves bytes
@@ -100,8 +102,16 @@ public class IRCConnection extends ServerConnectionApi {
     }
 
     private String readCommand() throws IOException {
+        // TODO verify specifications about max message lenght. It should be 512? RFC 1459
         byte[] buf = new byte[1024];
         int i, v;
+
+        // TODO Smelly: If a malicious server (or MITM) sends a line longer than 1024 bytes
+        //  without \r\n, the command gets silently split across two readCommand() calls.
+        //  Basically the first call read the 1024 bytes, then return to the
+        //  handleInput loop - while(true)
+        //  The second call then picks up the remaning bytes from the stream and process any
+        //  injected command as legitimate.
         for (i = 0; i < 1024; i++) {
             v = socketInputStream.read();
             if (v == -1)
@@ -118,11 +128,13 @@ public class IRCConnection extends ServerConnectionApi {
         return new String(buf, 0, i, charset);
     }
 
+    // TODO check IOException handling here. Something's seems off
     private void handleInput() {
         try {
             while (true) {
                 String command = readCommand();
                 Log.i("Got: ", command);
+
                 try {
                     // NOTE: Socket read loop
                     // MessageHandler parses line
@@ -136,16 +148,23 @@ public class IRCConnection extends ServerConnectionApi {
             }
         } catch (IOException e) {
 
+            Log.d(TAG,"handleInput() got a IOException: exception -> ", e);
             // Failure handling: disconnect warnings bypass normal channel routing;
             // they go straight to conversation state
-            e.printStackTrace();
+
+            Log.d(TAG,"handleInput() setting socket streams to null");
             socketInputStream = null;
             synchronized (socketOutputStream) {
                 socketOutputStream = null;
             }
-            getServerConnectionData().addLocalMessageToAllChannels(new MessageInfo(null, new Date(), null, MessageInfo.MessageType.DISCONNECT_WARNING));
-            getServerConnectionData().getServerStatusData().addMessage(new StatusMessageInfo(null, new Date(), StatusMessageInfo.MessageType.DISCONNECT_WARNING, null));
+
+            Log.d(TAG,"handleInput() notifying disconnection to Channels, Servers and ");
+            getServerConnectionData().addLocalMessageToAllChannels(
+                    new MessageInfo(null, new Date(), null, MessageInfo.MessageType.DISCONNECT_WARNING));
+            getServerConnectionData().getServerStatusData().addMessage(
+                    new StatusMessageInfo(null, new Date(), StatusMessageInfo.MessageType.DISCONNECT_WARNING, null));
             getServerConnectionData().getCommandHandlerList().notifyDisconnected();
+
             synchronized (this) {
                 socket = null;
                 if (connectErrorCallback != null)
