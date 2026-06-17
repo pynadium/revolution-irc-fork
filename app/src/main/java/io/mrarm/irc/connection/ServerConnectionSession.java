@@ -11,6 +11,7 @@ import io.mrarm.irc.UserOverrideTrustManager;
 import io.mrarm.irc.chat.ChatUIData;
 import io.mrarm.irc.chatlib.ChannelListListener;
 import io.mrarm.irc.chatlib.ChatApi;
+import io.mrarm.irc.chatlib.NickUnavailableException;
 import io.mrarm.irc.chatlib.dto.MessageId;
 import io.mrarm.irc.chatlib.irc.IRCConnection;
 import io.mrarm.irc.chatlib.irc.IRCConnectionRequest;
@@ -73,6 +74,9 @@ public class ServerConnectionSession {
     private boolean mConnecting = false;
     private boolean mDisconnecting = false;
     private boolean mUserDisconnectRequest = false;
+    private boolean mNickExhausted = false;
+    private String mNickExhaustedReason = null;
+    private List<String> mNickExhaustedNicks = null;
     private long mReconnectQueueTime = -1L;
     private ReconnectPolicy mReconnectPolicy;
     private final DelayScheduler mReconnectScheduler;
@@ -142,6 +146,9 @@ public class ServerConnectionSession {
 
             mConnecting = true;
             mUserDisconnectRequest = false;
+            mNickExhausted = false;
+            mNickExhaustedReason = null;
+            mNickExhaustedNicks = null;
             mReconnectQueueTime = -1L;
         }
         Log.i(TAG, "Connecting...");
@@ -199,6 +206,16 @@ public class ServerConnectionSession {
                 Log.d(TAG, "connect() -> Exception: User rejected the certificate", e);
                 synchronized (this) {
                     mUserDisconnectRequest = true;
+                }
+            } else if (e instanceof NickUnavailableException) {
+                // All configured nicks rejected — retrying with the same list is futile.
+                // Stop auto-reconnect and surface the server's error to the UI.
+                Log.d(TAG, "connect() -> Exception: all nicks exhausted, stopping reconnect", e);
+                synchronized (this) {
+                    mUserDisconnectRequest = true;
+                    mNickExhausted = true;
+                    mNickExhaustedReason = e.getMessage();
+                    mNickExhaustedNicks = ((NickUnavailableException) e).getTriedNicks();
                 }
             }
             Log.d(TAG, "connect() -> Exception: posting notifyDisconnected to main thread", e);
@@ -410,6 +427,37 @@ public class ServerConnectionSession {
         synchronized (this) {
             return mUserDisconnectRequest;
         }
+    }
+
+    public boolean isNickExhausted() {
+        synchronized (this) {
+            return mNickExhausted;
+        }
+    }
+
+    public String getNickExhaustedReason() {
+        synchronized (this) {
+            return mNickExhaustedReason;
+        }
+    }
+
+    public List<String> getNickExhaustedNicks() {
+        synchronized (this) {
+            return mNickExhaustedNicks;
+        }
+    }
+
+    public void reconnectWithNick(String nick) {
+        synchronized (this) {
+            mNickExhausted = false;
+            mNickExhaustedReason = null;
+            mNickExhaustedNicks = null;
+            mUserDisconnectRequest = false;
+            List<String> list = new ArrayList<>();
+            list.add(nick);
+            mConnectionRequest.setNickList(list);
+        }
+        connect();
     }
 
     public List<String> getChannels() {

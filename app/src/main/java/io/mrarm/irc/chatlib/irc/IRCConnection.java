@@ -18,6 +18,7 @@ import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLSocket;
 
 import io.mrarm.irc.chatlib.ChatApiException;
+import io.mrarm.irc.chatlib.NickUnavailableException;
 import io.mrarm.irc.chatlib.ResponseCallback;
 import io.mrarm.irc.chatlib.ResponseErrorCallback;
 import io.mrarm.irc.chatlib.dto.MessageInfo;
@@ -450,14 +451,17 @@ public class IRCConnection extends ServerConnectionApi {
         getServerConnectionData().setUserNick(nickList.get(index));
         getServerConnectionData().getCommandHandlerList().getHandler(NickCommandHandler.class).onRequested(
                 nickList.get(0), null, (String n, int i, String err) -> {
-                    if (i == NickCommandHandler.ERR_NICKNAMEINUSE) {
+                    if (i == NickCommandHandler.ERR_NICKNAMEINUSE ||
+                            i == NickCommandHandler.ERR_ERRONEUSNICKNAME) {
                         // Try next nickname
                         if (index + 1 >= nickList.size()) {
                             // Null the callback before calling it so the IOException that
                             // disconnect(false) triggers in handleInput() does not re-fire it.
                             ResponseErrorCallback cb = connectErrorCallback;
                             connectErrorCallback = null;
-                            if (cb != null) cb.onError(new ChatApiException("No available nickname"));
+                            if (cb != null) cb.onError(new NickUnavailableException(
+                                    err != null ? err : "No available nickname",
+                                    new java.util.ArrayList<>(nickList)));
                             disconnect(false);
                             return;
                         }

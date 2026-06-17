@@ -18,6 +18,7 @@ import io.mrarm.irc.chatlib.user.UserInfo;
 public class NickCommandHandler extends RequestResponseCommandHandler<String, String> implements CommandHandler {
 
     public static final int ERR_NONICKNAMEGIVEN = 431;
+    public static final int ERR_ERRONEUSNICKNAME = 432;
     public static final int ERR_NICKNAMEINUSE = 433;
 
     public NickCommandHandler(ErrorCommandHandler handler) {
@@ -31,7 +32,7 @@ public class NickCommandHandler extends RequestResponseCommandHandler<String, St
 
     @Override
     public int[] getHandledErrors() {
-        return new int[]{ERR_NONICKNAMEGIVEN, ERR_NICKNAMEINUSE};
+        return new int[]{ERR_NONICKNAMEGIVEN, ERR_ERRONEUSNICKNAME, ERR_NICKNAMEINUSE};
     }
 
     @Override
