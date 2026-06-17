@@ -56,18 +56,21 @@ public class SimpleUserInfoApi implements WritableUserInfoApi {
     }
 
     @Override
+    public UUID resolveUserSync(String nick, String user, String host) {
+        synchronized (this) {
+            if (nickToUserInfo.containsKey(nick))
+                return nickToUserInfo.get(nick).getUUID();
+            UserInfo userInfo = new UserInfo(UUID.randomUUID(), nick);
+            uuidToUserInfo.put(userInfo.getUUID(), userInfo);
+            nickToUserInfo.put(userInfo.getCurrentNick(), userInfo);
+            return userInfo.getUUID();
+        }
+    }
+
+    @Override
     public Future<UUID> resolveUser(String nick, String user, String host, ResponseCallback<UUID> callback,
                                     ResponseErrorCallback errorCallback) {
-        return SimpleRequestExecutor.run(() -> {
-            synchronized (SimpleUserInfoApi.this) {
-                if (nickToUserInfo.containsKey(nick))
-                    return nickToUserInfo.get(nick).getUUID();
-                UserInfo userInfo = new UserInfo(UUID.randomUUID(), nick);
-                uuidToUserInfo.put(userInfo.getUUID(), userInfo);
-                nickToUserInfo.put(userInfo.getCurrentNick(), userInfo);
-                return userInfo.getUUID();
-            }
-        }, callback, errorCallback);
+        return SimpleRequestExecutor.run(() -> resolveUserSync(nick, user, host), callback, errorCallback);
     }
 
     @Override

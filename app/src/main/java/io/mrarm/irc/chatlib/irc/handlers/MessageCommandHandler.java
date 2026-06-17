@@ -28,6 +28,7 @@ public class MessageCommandHandler implements CommandHandler {
     private String ctcpVersionReply = "Chatlib:unknown:unknown";
     private DCCServerManager dccServerManager;
     private DCCClientManager dccClientManager;
+    private final String TAG = "[MESSAGE COMMAND HANDLER]";
 
     @Override
     public Object[] getHandledCommands() {
@@ -55,18 +56,22 @@ public class MessageCommandHandler implements CommandHandler {
     public void handle(ServerConnectionData connection, MessagePrefix sender, String command, List<String> params,
                        Map<String, String> tags)
             throws InvalidMessageException {
-        Log.d("[MESSAGE COMMAND HANDLER]", "handle() " + command + " " + sender);
+        Log.d(TAG, "handle() " + command + " " + sender);
         try {
             MessageInfo.MessageType type = (command.equals("NOTICE") ? MessageInfo.MessageType.NOTICE :
                     MessageInfo.MessageType.NORMAL);
             UUID userUUID = null;
             if (sender != null)
-
-                // NOTE Resolves sender identity (BLOCKING)
-                // .get() => blocking Future
-                // Happens on network thread
-                userUUID = connection.getUserInfoApi().resolveUser(sender.getNick(), sender.getUser(), sender.getHost(),
-                        null, null).get();
+                // resolveUserSync is safe to call on the socket read thread: it is guaranteed
+                // to run inline with no I/O or thread-switching.
+            {
+                userUUID = connection.getUserInfoApi().resolveUserSync(
+                        sender.getNick(), sender.getUser(), sender.getHost());
+                Log.d(TAG, "handle() has resolved userUUID: " + userUUID +
+                        "nick: " + sender.getNick() +
+                        "user: " + sender.getUser() +
+                        "host: " + sender.getHost());
+            }
 
             String[] targetChannels = CommandHandler.getParamWithCheck(params, 0).split(",");
 
@@ -79,7 +84,14 @@ public class MessageCommandHandler implements CommandHandler {
             int ctcpE = text.lastIndexOf('\01');
             if (ctcpS != -1 && ctcpE != -1 && sender != null) {
                 for (String ctcpCommand : text.substring(ctcpS, ctcpE).split("\01"))
-                    processCtcp(connection, sender, userUUID, targetChannels, ctcpCommand.indexOf('\134') == -1 ? ctcpCommand : ctcpDequote(ctcpCommand), type == MessageInfo.MessageType.NOTICE, tags);
+                    processCtcp(
+                            connection,
+                            sender,
+                            userUUID,
+                            targetChannels,
+                            ctcpCommand.indexOf('\134') == -1 ? ctcpCommand : ctcpDequote(ctcpCommand),
+                            type == MessageInfo.MessageType.NOTICE,
+                            tags);
                 if (ctcpS == 0 && ctcpE == text.length() - 1)
                     return;
                 text = text.substring(0, ctcpS) + text.substring(ctcpE + 1, text.length());
@@ -115,12 +127,12 @@ public class MessageCommandHandler implements CommandHandler {
     }
 
     private void processCtcp(ServerConnectionData connection, MessagePrefix sender, UUID userUUID, String[] targetChannels, String data, boolean notice, Map<String, String> tags) throws InterruptedException, ExecutionException, InvalidMessageException {
-        Log.d("[MESSAGE COMMAND HANDLER]", "processCtcp() " + data);
+        Log.d(TAG, "processCtcp() " + data);
         int iof = data.indexOf(' ');
         String command = iof == -1 ? data : data.substring(0, iof);
         String args = data.substring(iof + 1);
         if (command.equals("ACTION")) {
-            Log.d("[MESSAGE COMMAND HANDLER]", "processCtcp() " + command);
+            Log.d(TAG, "processCtcp() " + command);
             for (String channel : targetChannels) {
                 ChannelData channelData = getChannelData(connection, sender, channel);
                 if (channelData == null)
@@ -128,7 +140,7 @@ public class MessageCommandHandler implements CommandHandler {
                 channelData.addMessage(new MessageInfo.Builder(sender.toSenderInfo(userUUID, channelData), args, MessageInfo.MessageType.ME), tags);
             }
         } else if (command.equals("PING") && !notice) {
-            Log.d("[MESSAGE COMMAND HANDLER]", "processCtcp() " + command);
+            Log.d(TAG, "processCtcp() " + command);
             if (!rateLimitCtcpCommand() || args.length() > 32)
                 return;
             for (int i = 0; i < args.length(); i++) {
@@ -138,13 +150,13 @@ public class MessageCommandHandler implements CommandHandler {
             connection.getServerStatusData().addMessage(new StatusMessageInfo(sender.getNick(), new Date(), StatusMessageInfo.MessageType.CTCP_PING, null));
             connection.getApi().sendNotice(sender.getNick(), "\01PING " + args + "\01", null, null);
         } else if (command.equals("VERSION") && !notice) {
-            Log.d("[MESSAGE COMMAND HANDLER]", "processCtcp() " + command);
+            Log.d(TAG, "processCtcp() " + command);
             if (!rateLimitCtcpCommand())
                 return;
             connection.getServerStatusData().addMessage(new StatusMessageInfo(sender.getNick(), new Date(), StatusMessageInfo.MessageType.CTCP_VERSION, null));
             connection.getApi().sendNotice(sender.getNick(), "\01VERSION " + ctcpVersionReply + "\01", null, null);
         } else if (command.equals("DCC")) {
-            Log.d("[MESSAGE COMMAND HANDLER]", "processCtcp() " + command);
+            Log.d(TAG, "processCtcp() " + command);
             if (args.startsWith("RESUME ") && dccServerManager != null && rateLimitCtcpCommand()) {
                 args = args.substring(7);
                 int filenameLen = DCCUtils.getFilenameLength(args);
@@ -199,7 +211,7 @@ public class MessageCommandHandler implements CommandHandler {
                 dccClientManager.onFileOffered(connection, sender, filename, ip, port, size);
             }
         }
-        Log.d("[MESSAGE COMMAND HANDLER]", "processCtcp() " + command + "UNHANDLED!");
+        Log.d(TAG, "processCtcp() " + command + " UNHANDLED!");
         // TODO: Implement other CTCP commands
     }
 
