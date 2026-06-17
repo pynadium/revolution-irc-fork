@@ -167,8 +167,9 @@ public class IRCConnection extends ServerConnectionApi {
 
             synchronized (this) {
                 socket = null;
-                if (connectErrorCallback != null)
-                    connectErrorCallback.onError(e);
+                ResponseErrorCallback cb = connectErrorCallback;
+                connectErrorCallback = null;
+                if (cb != null) cb.onError(e);
             }
             synchronized (disconnectListeners) {
                 for (DisconnectListener listener : disconnectListeners) {
@@ -452,8 +453,12 @@ public class IRCConnection extends ServerConnectionApi {
                     if (i == NickCommandHandler.ERR_NICKNAMEINUSE) {
                         // Try next nickname
                         if (index + 1 >= nickList.size()) {
-                            if (connectErrorCallback != null)
-                                connectErrorCallback.onError(new ChatApiException("No available nickname"));
+                            // Null the callback before calling it so the IOException that
+                            // disconnect(false) triggers in handleInput() does not re-fire it.
+                            ResponseErrorCallback cb = connectErrorCallback;
+                            connectErrorCallback = null;
+                            if (cb != null) cb.onError(new ChatApiException("No available nickname"));
+                            disconnect(false);
                             return;
                         }
                         try {
