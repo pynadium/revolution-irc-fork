@@ -8,6 +8,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -103,6 +105,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
     private MessageId mUnreadCheckFor;
 
     private MessageStorageRepository mRoomRepo;
+    private final Handler mMainHandler = new Handler(Looper.getMainLooper());
 
     static {
         sFilterJoinParts = new MessageFilterOptions();
@@ -188,10 +191,14 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
             connectionInfo.getApiInstance().getChannelInfo(mChannelName,
                     (ChannelInfo channelInfo) -> {
                         Log.i(TAG, "Got channel info " + mChannelName);
-                        mChannelTopic = channelInfo.getTopic();
-                        mChannelTopicSetBy = channelInfo.getTopicSetBy();
-                        mChannelTopicSetOn = channelInfo.getTopicSetOn();
-                        onMemberListChanged(channelInfo.getMembers());
+                        // Callback fires on the send executor thread. Marshal all field writes
+                        // and the subsequent UI update to the main thread.
+                        mMainHandler.post(() -> {
+                            mChannelTopic = channelInfo.getTopic();
+                            mChannelTopicSetBy = channelInfo.getTopicSetBy();
+                            mChannelTopicSetOn = channelInfo.getTopicSetOn();
+                            onMemberListChanged(channelInfo.getMembers());
+                        });
                     }, null);
 
             connectionInfo.getApiInstance().subscribeChannelInfo(mChannelName, this, null, null);
@@ -601,7 +608,10 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
             if (mRecyclerView != null) {
                 mRecyclerView.post(r);
             } else {
-                r.run();
+                // View not yet inflated (onCreate before onCreateView). Still post to the main
+                // thread — never run adapter mutations directly on the caller's thread, which
+                // may be the MessagePipeline executor.
+                mMainHandler.post(r);
             }
         }
     }
