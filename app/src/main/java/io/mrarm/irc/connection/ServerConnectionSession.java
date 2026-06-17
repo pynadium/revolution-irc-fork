@@ -59,6 +59,8 @@ import io.mrarm.irc.util.UserAutoRunCommandHelper;
 
 public class ServerConnectionSession {
 
+    private static final long CONNECTIVITY_LOSS_GRACE_MS = 3000L;
+
     private ServerConnectionManager mManager;
     private final SessionInitializer sessionInitializer;
     private final ServerConfigData mServerConfig;
@@ -80,6 +82,8 @@ public class ServerConnectionSession {
     private final List<ChannelListChangeListener> mChannelsListeners = new ArrayList<>();
     private int mCurrentReconnectAttempt = -1;
     private final ChatUIData mChatUIData = new ChatUIData();
+
+    private static final String TAG = "SERVER CONNECTION SESSION";
 
     public ServerConnectionSession(ServerConnectionManager manager,
                                    SessionInitializer initializer,
@@ -140,7 +144,7 @@ public class ServerConnectionSession {
             mUserDisconnectRequest = false;
             mReconnectQueueTime = -1L;
         }
-        Log.i("ServerConnectionInfo", "Connecting...");
+        Log.i(TAG, "Connecting...");
 
         IRCConnection connection;
         boolean createdNewConnection = false;
@@ -160,35 +164,41 @@ public class ServerConnectionSession {
         List<String> rejoinChannels = getChannels();
 
         connection.connect(mConnectionRequest, (Void v) -> {
-            synchronized (this) {
-                mConnecting = false;
-                setConnected(true);
-                mCurrentReconnectAttempt = 0;
+            // notifyMotdReceived() fires on the socket read thread. Post all state mutation
+            // and side effects (listener notifications, IRCService.start, joinChannels) to
+            // the main thread so that InfoChangeListeners are never called from the socket thread.
+            mReconnectScheduler.schedule(0, () -> {
+                synchronized (this) {
+                    mConnecting = false;
+                    setConnected(true);
+                    mCurrentReconnectAttempt = 0;
 
-                if (mServerConfig.execCommandsConnected != null) {
-                    if (mAutoRunHelper == null)
-                        mAutoRunHelper = new UserAutoRunCommandHelper(this);
-                    mAutoRunHelper.executeUserCommands(mServerConfig.execCommandsConnected);
+                    if (mServerConfig.execCommandsConnected != null) {
+                        if (mAutoRunHelper == null)
+                            mAutoRunHelper = new UserAutoRunCommandHelper(this);
+                        mAutoRunHelper.executeUserCommands(mServerConfig.execCommandsConnected);
+                    }
                 }
-            }
 
-            List<String> joinChannels = new ArrayList<>();
-            if (mServerConfig.autojoinChannels != null)
-                joinChannels.addAll(mServerConfig.autojoinChannels);
-            if (rejoinChannels != null && mServerConfig.rejoinChannels)
-                joinChannels.addAll(rejoinChannels);
-            if (!joinChannels.isEmpty())
-                fConnection.joinChannels(joinChannels, null, null);
+                List<String> joinChannels = new ArrayList<>();
+                if (mServerConfig.autojoinChannels != null)
+                    joinChannels.addAll(mServerConfig.autojoinChannels);
+                if (rejoinChannels != null && mServerConfig.rejoinChannels)
+                    joinChannels.addAll(rejoinChannels);
+                if (!joinChannels.isEmpty())
+                    fConnection.joinChannels(joinChannels, null, null);
+            });
 
         }, (Exception e) -> {
             if (e instanceof UserOverrideTrustManager.UserRejectedCertificateException ||
                     (e.getCause() != null && e.getCause() instanceof
                             UserOverrideTrustManager.UserRejectedCertificateException)) {
-                Log.d("ServerConnectionInfo", "User rejected the certificate");
+                Log.d(TAG, "connect() -> Exception catched: User rejected the certificate", e);
                 synchronized (this) {
                     mUserDisconnectRequest = true;
                 }
             }
+            Log.d(TAG, "connect() -> Exception catched: notifyingDisconnection", e);
             notifyDisconnected();
         });
 
@@ -230,28 +240,31 @@ public class ServerConnectionSession {
     }
 
     public void notifyDisconnected() {
+        Log.i(TAG, "notifyDisconnect() invoked");
         synchronized (this) {
             if (mAutoRunHelper != null)
                 mAutoRunHelper.cancelUserCommandExecution();
         }
-        if (isDisconnecting()) {
-            notifyFullyDisconnected();
-            return;
-        }
+        // Do not check isDisconnecting() outside the lock — mDisconnecting can be set by
+        // disconnect() on another thread between an unlocked check and the synchronized block
+        // below, producing a TOCTOU. The in-lock check on mDisconnecting is sufficient.
         synchronized (this) {
             setConnected(false);
             mConnecting = false;
             if (mDisconnecting) {
-                notifyFullyDisconnected();
+                    Log.i(TAG, "notifyDisconnect(): mDisconnecting then notifyFullDisconnected()");
+                    notifyFullyDisconnected();
+                    return;
+            }
+            if (mUserDisconnectRequest) {
+                Log.i(TAG, "notifyDisconnect(): mUserDisconnectRequest then return");
                 return;
             }
-            if (mUserDisconnectRequest)
-                return;
         }
         int reconnectDelay = mReconnectPolicy.getReconnectDelay(mCurrentReconnectAttempt++);
         if (reconnectDelay == -1)
             return;
-        Log.i("ServerConnectionInfo", "Queuing reconnect in " + reconnectDelay + " ms");
+        Log.i(TAG, "Queuing reconnect in " + reconnectDelay + " ms");
         mReconnectQueueTime = System.nanoTime();
         mReconnectScheduler.schedule(reconnectDelay, mReconnectRunnable);
     }
@@ -266,7 +279,7 @@ public class ServerConnectionSession {
     }
 
     public synchronized void close() {
-        Log.i("ServerConnectionInfo", "Closing");
+        Log.i(TAG, "close()");
         if (getApiInstance() != null) {
             ServerConnectionData connectionData = ((ServerConnectionApi) getApiInstance())
                     .getServerConnectionData();
@@ -280,14 +293,47 @@ public class ServerConnectionSession {
         }
     }
 
-    public void notifyConnectivityChanged(boolean hasAnyConnectivity, boolean hasWifi) {
-        mReconnectScheduler.cancel(mReconnectRunnable);
+    private final Runnable mConnectivityLossRunnable = () -> disconnectForReconnect();
 
-        if (!hasAnyConnectivity || !AppSettings.isReconnectEnabled() ||
+
+    private void disconnectForReconnect() {
+        synchronized (this) {
+            mReconnectScheduler.cancel(mReconnectRunnable);
+            if (!mConnected && !mConnecting)
+                return;
+            mDisconnecting = true;
+            // do NOT set mUserDisconnectRequest = true
+        }
+        if (mConnecting) {
+            Thread t = new Thread(() -> ((IRCConnection) getApiInstance()).disconnect(true));
+            t.setName("Disconnect Thread");
+            t.start();
+        } else {
+            String message = AppSettings.getDefaultQuitMessage();
+            mApi.quit(message, null, (Exception e) -> ((IRCConnection) getApiInstance()).disconnect(true));
+        }
+    }
+
+    public void notifyConnectivityChanged(boolean hasAnyConnectivity, boolean hasWifi) {
+        Log.i(TAG, "notifyConnectivityChanged(), " +
+                "hasAnyConnectivity: " + hasAnyConnectivity +
+                "hasWifi: " + hasWifi);
+
+        mReconnectScheduler.cancel(mReconnectRunnable);
+        mReconnectScheduler.cancel(mConnectivityLossRunnable);
+
+        if (!hasAnyConnectivity) {
+            mReconnectScheduler.schedule(CONNECTIVITY_LOSS_GRACE_MS, mConnectivityLossRunnable);
+            return;
+        }
+
+        if (!AppSettings.isReconnectEnabled() ||
                 (AppSettings.isReconnectWiFiOnly() && !hasWifi))
             return;
+
         if (AppSettings.isReconnectOnConnectivityChangeEnabled()) {
             connect(); // this will be ignored if we are already connected
+
         } else if (mReconnectQueueTime != -1L) {
             long reconnectDelay = mReconnectPolicy.getReconnectDelay(mCurrentReconnectAttempt++);
             if (reconnectDelay == -1)
