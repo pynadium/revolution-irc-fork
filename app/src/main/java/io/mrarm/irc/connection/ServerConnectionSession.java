@@ -170,7 +170,7 @@ public class ServerConnectionSession {
             mReconnectScheduler.schedule(0, () -> {
                 synchronized (this) {
                     mConnecting = false;
-                    setConnected(true);
+                    mConnected = true;
                     mCurrentReconnectAttempt = 0;
 
                     if (mServerConfig.execCommandsConnected != null) {
@@ -179,6 +179,8 @@ public class ServerConnectionSession {
                         mAutoRunHelper.executeUserCommands(mServerConfig.execCommandsConnected);
                     }
                 }
+                // Notify listeners outside the lock — same rationale as notifyDisconnected().
+                notifyInfoChanged();
 
                 List<String> joinChannels = new ArrayList<>();
                 if (mServerConfig.autojoinChannels != null)
@@ -190,16 +192,17 @@ public class ServerConnectionSession {
             });
 
         }, (Exception e) -> {
+            // May arrive on the socket thread or the send executor. Always post to main.
             if (e instanceof UserOverrideTrustManager.UserRejectedCertificateException ||
                     (e.getCause() != null && e.getCause() instanceof
                             UserOverrideTrustManager.UserRejectedCertificateException)) {
-                Log.d(TAG, "connect() -> Exception catched: User rejected the certificate", e);
+                Log.d(TAG, "connect() -> Exception: User rejected the certificate", e);
                 synchronized (this) {
                     mUserDisconnectRequest = true;
                 }
             }
-            Log.d(TAG, "connect() -> Exception catched: notifyingDisconnection", e);
-            notifyDisconnected();
+            Log.d(TAG, "connect() -> Exception: posting notifyDisconnected to main thread", e);
+            mReconnectScheduler.schedule(0, this::notifyDisconnected);
         });
 
         if (createdNewConnection) {
@@ -245,22 +248,31 @@ public class ServerConnectionSession {
             if (mAutoRunHelper != null)
                 mAutoRunHelper.cancelUserCommandExecution();
         }
-        // Do not check isDisconnecting() outside the lock — mDisconnecting can be set by
-        // disconnect() on another thread between an unlocked check and the synchronized block
-        // below, producing a TOCTOU. The in-lock check on mDisconnecting is sufficient.
+
+        boolean fullyDisconnected;
+        boolean userRequested;
         synchronized (this) {
-            setConnected(false);
+            // Write state directly — do NOT call setConnected() here, as that would invoke
+            // notifyInfoChanged() while holding this lock, creating a lock-ordering hazard
+            // (this → mInfoListeners). notifyInfoChanged() is called below, outside the lock.
+            mConnected = false;
             mConnecting = false;
-            if (mDisconnecting) {
-                    Log.i(TAG, "notifyDisconnect(): mDisconnecting then notifyFullDisconnected()");
-                    notifyFullyDisconnected();
-                    return;
-            }
-            if (mUserDisconnectRequest) {
-                Log.i(TAG, "notifyDisconnect(): mUserDisconnectRequest then return");
-                return;
-            }
+            fullyDisconnected = mDisconnecting;
+            userRequested = mUserDisconnectRequest;
         }
+
+        notifyInfoChanged();
+
+        if (fullyDisconnected) {
+            Log.i(TAG, "notifyDisconnect(): mDisconnecting=true, calling notifyFullyDisconnected()");
+            notifyFullyDisconnected();
+            return;
+        }
+        if (userRequested) {
+            Log.i(TAG, "notifyDisconnect(): mUserDisconnectRequest=true, skipping reconnect");
+            return;
+        }
+
         int reconnectDelay = mReconnectPolicy.getReconnectDelay(mCurrentReconnectAttempt++);
         if (reconnectDelay == -1)
             return;
@@ -271,10 +283,14 @@ public class ServerConnectionSession {
 
     private void notifyFullyDisconnected() {
         synchronized (this) {
-            setConnected(false);
+            mConnected = false;
             mConnecting = false;
             mDisconnecting = false;
         }
+        // notifyInfoChanged() called outside the lock — see notifyDisconnected() for rationale.
+        // (notifyDisconnected already called notifyInfoChanged once before reaching here;
+        //  this second call propagates the mDisconnecting=false state change.)
+        notifyInfoChanged();
         mManager.notifyConnectionFullyDisconnected(this);
     }
 

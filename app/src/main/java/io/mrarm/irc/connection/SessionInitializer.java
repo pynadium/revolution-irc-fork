@@ -1,6 +1,8 @@
 package io.mrarm.irc.connection;
 
 import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 import io.mrarm.irc.BuildConfig;
@@ -89,10 +91,13 @@ public class SessionInitializer {
                 "Android"
         );
 
+        Handler mainHandler = new Handler(Looper.getMainLooper());
         connection.addDisconnectListener(
                 (conn, reason) -> {
-                    Log.d(TAG, "attach(): disconnection listener invoked. session.NotifyDisconnect");
-                    session.notifyDisconnected();
+                    // Fires on the socket read thread. Post to the main thread so that
+                    // InfoChangeListeners and reconnect scheduling always run on main.
+                    Log.d(TAG, "attach(): disconnection listener invoked. Posting notifyDisconnected to main thread.");
+                    mainHandler.post(session::notifyDisconnected);
                 }
         );
     }
