@@ -39,6 +39,8 @@ public class DefaultMessagePipeline implements MessagePipeline {
                         " text=" + message.getMessage()
         );
 
+        if (channelName == null) return;
+
         pipelineExecutor.execute(() -> {
             final MessageId messageId;
             try {
@@ -48,8 +50,7 @@ public class DefaultMessagePipeline implements MessagePipeline {
                 return;
             }
 
-            Log.d(
-                    "MessagePipeline",
+            Log.d("MessagePipeline",
                     "emit: room=" + channelName +
                             " id=" + messageId
             );
