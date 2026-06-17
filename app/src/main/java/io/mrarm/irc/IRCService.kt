@@ -16,9 +16,12 @@ import androidx.annotation.Keep
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
+import io.mrarm.irc.connection.NetworkUtility
 import io.mrarm.irc.connection.ServerConnectionManager
 import io.mrarm.irc.job.ServerPingScheduler
 import io.mrarm.irc.util.WarningHelper
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -35,14 +38,13 @@ class IRCService : LifecycleService() {
     private var connectivityManager: ConnectivityManager? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
+    private var networkUpdateJob: Job? = null
 
     /** Called when the service is first created. Initializes managers and listeners. */
     override fun onCreate() {
         super.onCreate()
-        Log.i(
-            "[FLOW]",
-            ">>> IRC service created, IRCService.oncreate() called"
-        )
+        Log.d(TAG, "oncreate() called")
+
         WarningHelper.setAppContext(applicationContext)
         registerNetworkCallback()
         ServerPingScheduler.getInstance(this).startIfEnabled()
@@ -50,10 +52,7 @@ class IRCService : LifecycleService() {
 
     /** Cleans up connections, listeners, and schedulers when the service is destroyed. */
     override fun onDestroy() {
-        Log.i(
-            "[FLOW]",
-            ">>> IRC service created, IRCService.onDestroy() called"
-        )
+        Log.d(TAG, "onDestroy() called")
         super.onDestroy()
         unregisterNetworkCallback()
         ServerPingScheduler.getInstance(this).stop()
@@ -64,13 +63,17 @@ class IRCService : LifecycleService() {
      * Keeps track of connected/connecting/disconnected servers to display in the status.
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d(TAG, "onStartCommand: started")
         super.onStartCommand(intent, flags, startId)
         val action = intent?.action ?: return START_STICKY
+        Log.d(TAG, "onStartCommand: action=$action")
         if (action == ACTION_START_FOREGROUND) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !createdChannel) {
                 createNotificationChannel(this)
                 createdChannel = true
+                Log.d(TAG, "onStartCommand: created Notification Channel")
             }
+
 
             // Compose notification text summarizing connection states
             val manager = ServerConnectionManager.getInstance(this)
@@ -108,6 +111,8 @@ class IRCService : LifecycleService() {
                         )
                     )
             }
+            Log.d(TAG, "onStartCommand: composed notification text summaries with connection states $builder")
+
 
             // Build persistent foreground notification
             val mainIntent = MainActivity.getLaunchIntent(this, null, null)
@@ -139,6 +144,8 @@ class IRCService : LifecycleService() {
             notification.setSmallIcon(R.drawable.ic_server_connected)
 
             startForeground(IDLE_NOTIFICATION_ID, notification.build())
+            Log.d(TAG, "onStartCommand: Built persistent foreground notification")
+
         }
         return START_STICKY
     }
@@ -150,14 +157,18 @@ class IRCService : LifecycleService() {
 
     /** Registers a system callback to monitor network connectivity changes. */
     private fun registerNetworkCallback() {
+        Log.d(TAG, "registerNetworkCallback: registering a system callback to monitor connectivity changes")
+
         connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager?
         val manager = connectivityManager ?: return
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
+                Log.d(TAG, "registerNetworkCallback: onAvailable network")
                 handleNetworkUpdate()
             }
 
             override fun onLost(network: Network) {
+                Log.d(TAG, "registerNetworkCallback: onLost network")
                 handleNetworkUpdate()
             }
 
@@ -165,6 +176,7 @@ class IRCService : LifecycleService() {
                 network: Network,
                 networkCapabilities: NetworkCapabilities
             ) {
+                Log.d(TAG, "registerNetworkCallback: onCapabilitiesChanged network")
                 handleNetworkUpdate()
             }
         }
@@ -174,6 +186,7 @@ class IRCService : LifecycleService() {
             .build()
         try {
             manager.registerNetworkCallback(request, callback)
+            Log.d(TAG, "registerNetworkCallback: registered Network Callbacks")
             handleNetworkUpdate()
         } catch (e: SecurityException) {
             Log.w(TAG, "Unable to register network callback", e)
@@ -186,6 +199,7 @@ class IRCService : LifecycleService() {
         val callback = networkCallback ?: return
         try {
             manager.unregisterNetworkCallback(callback)
+            Log.d(TAG, "unregisterNetworkCallback: unregistered Network Callbacks")
         } catch (_: Exception) {
         }
         networkCallback = null
@@ -193,27 +207,24 @@ class IRCService : LifecycleService() {
 
     /** Called when network status changes; notifies managers to update connectivity. */
     private fun handleNetworkUpdate() {
-        lifecycleScope.launch {
+        networkUpdateJob?.cancel()
+        networkUpdateJob = lifecycleScope.launch {
+            delay(300L)
+            Log.d(TAG, "handleNetworkUpdate")
             val manager = ServerConnectionManager.getInstance(this@IRCService)
-            manager.notifyConnectivityChanged(hasAnyNetworkConnection())
+            manager.notifyConnectivityChanged(NetworkUtility.hasAnyNetworkCapability(this@IRCService))
             val wifiConnected = ServerConnectionManager.isWifiConnected(this@IRCService)
-            ServerPingScheduler.getInstance(this@IRCService).onWifiStateChanged(wifiConnected)
+            ServerPingScheduler.getInstance(this@IRCService)
+                .onWifiStateChanged(wifiConnected)
         }
     }
 
-    /** Returns true if the device currently has an active Internet connection. */
-    private fun hasAnyNetworkConnection(): Boolean {
-        val manager = connectivityManager ?: return false
-        val network = manager.activeNetwork ?: return false
-        val capabilities = manager.getNetworkCapabilities(network) ?: return false
-        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-    }
 
     /** BootReceiver automatically starts the service after device reboot. */
     class BootReceiver : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (Intent.ACTION_BOOT_COMPLETED == intent.action) {
-                Log.i(TAG, "Device booted")
+                Log.d(TAG, "onReceive: BootReceiver automatically starts the service after device reboot")
                 start(context)
             }
         }
@@ -250,6 +261,7 @@ class IRCService : LifecycleService() {
 
         @JvmStatic
         fun start(context: Context) {
+            Log.i(TAG, "start: Starting service...")
             val intent = Intent(context, IRCService::class.java).apply {
                 action = ACTION_START_FOREGROUND
             }
@@ -262,23 +274,29 @@ class IRCService : LifecycleService() {
 
         @JvmStatic
         fun stop(context: Context) {
+            Log.i(TAG, "stop: Stopping service...")
             context.stopService(Intent(context, IRCService::class.java))
         }
 
         @JvmStatic
         fun createNotificationChannel(ctx: Context) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O)
+            Log.d(TAG, "createNotificationChannel")
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O){
+                Log.d(TAG, "createNotificationChannel Build.VERSION.SDK_INT < Build.VERSION_CODE.0 = true")
                 return
-            val channel = NotificationChannel(
+            }
+            val channel: NotificationChannel = NotificationChannel(
                 IDLE_NOTIFICATION_CHANNEL,
                 ctx.getString(R.string.notification_channel_idle),
                 android.app.NotificationManager.IMPORTANCE_MIN
             ).apply {
+                Log.d(TAG, "createNotificationChannel .apply{}")
                 group = NotificationManager.getSystemNotificationChannelGroup(ctx)
                 setShowBadge(false)
             }
             val mgr = ctx.getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
             mgr.createNotificationChannel(channel)
+            Log.d(TAG, "createNotificationChannel created NotificationChannel ${channel.description}")
         }
     }
 }

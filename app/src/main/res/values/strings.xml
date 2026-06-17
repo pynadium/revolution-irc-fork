@@ -165,6 +165,7 @@
     <!-- Connection errors -->
 
     <string name="connection_error_no_nick">No nick set</string>
+    <string name="connection_error_no_network">Device has no connection to network</string>
 
     <string name="connection_error_command_title">Error processing post-connect commands</string>
     <string name="connection_error_command_notification_desc">An internal error has occurred while trying to process post-connect commands.</string>

@@ -65,6 +65,7 @@ import kotlinx.coroutines.CoroutineStart;
 public class ServerConnectionManager {
 
     private static ServerConnectionManager instance;
+    private final static String TAG = "[SERVER CONNECTION MANAGER]";
 
     private final Context mContext;
     private final HashMap<UUID, ServerConnectionSession> mConnectionsMap = new HashMap<>();
@@ -109,6 +110,8 @@ public class ServerConnectionManager {
     }
 
     public ServerConnectionManager(Context context, SchedulerProvider schedulerProvider) {
+        Log.i(TAG, "Called constructor");
+
         mContext = context;
         SchedulerProvider resolvedProvider = schedulerProvider != null ? schedulerProvider : SchedulerProviderHolder.get();
         mIoScopeWrapper = new ManagedCoroutineScope(resolvedProvider.getIoDispatcher());
@@ -129,7 +132,7 @@ public class ServerConnectionManager {
                 }
             }
         }
-        Log.i("[REGISTRY]", "Restored " + entries.size() + " connections");
+        Log.i(TAG, "Restored " + entries.size() + " connections");
     }
 
     void saveAutoconnectListAsync() {
@@ -199,6 +202,12 @@ public class ServerConnectionManager {
     public void tryCreateConnection(ServerConfigData data, Context activity) {
         if (ServerConnectionManager.getInstance(getContext()).hasConnection(data.uuid))
             return;
+
+        if (!NetworkUtility.hasAnyNetworkCapability(this.mContext)) {
+            Toast.makeText(activity, R.string.connection_error_no_network, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         try {
             createConnection(data);
         } catch (NickNotSetException e) {
