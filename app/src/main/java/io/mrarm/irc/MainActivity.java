@@ -4,8 +4,13 @@ import android.app.Dialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.res.Configuration;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.PowerManager;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -177,6 +182,10 @@ public class MainActivity extends ThemedActivity
         }
 
         ServerConnectionManager.getInstance(this).addGlobalConnectionInfoListener(mNickExhaustedListener);
+
+        if (savedInstanceState == null) {
+            checkBatteryOptimization();
+        }
     }
 
     private void setupDCCHandlers() {
@@ -618,6 +627,32 @@ public class MainActivity extends ThemedActivity
                 })
                 .create();
         mNickDialog.show();
+    }
+
+    private static final String PREFS_NAME = "main_activity";
+    private static final String PREF_BATTERY_OPT_ASKED = "battery_opt_asked";
+
+    private void checkBatteryOptimization() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M)
+            return;
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (pm != null && pm.isIgnoringBatteryOptimizations(getPackageName()))
+            return;
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        if (prefs.getBoolean(PREF_BATTERY_OPT_ASKED, false))
+            return;
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.battery_opt_title)
+                .setMessage(R.string.battery_opt_message)
+                .setPositiveButton(R.string.battery_opt_grant, (d, which) -> {
+                    prefs.edit().putBoolean(PREF_BATTERY_OPT_ASKED, true).apply();
+                    Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                    intent.setData(Uri.parse("package:" + getPackageName()));
+                    startActivity(intent);
+                })
+                .setNegativeButton(R.string.battery_opt_not_now, (d, which) ->
+                        prefs.edit().putBoolean(PREF_BATTERY_OPT_ASKED, true).apply())
+                .show();
     }
 
     public void dismissFragmentDialog() {

@@ -356,6 +356,13 @@ public class ServerConnectionManager {
     }
 
     public void notifyConnectivityChanged(boolean hasAnyConnectivity) {
+        if (!hasAnyConnectivity && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            android.os.PowerManager pm = (android.os.PowerManager) mContext.getSystemService(Context.POWER_SERVICE);
+            if (pm != null && pm.isDeviceIdleMode()) {
+                Log.i(TAG, "notifyConnectivityChanged: Doze active, suppressing proactive disconnect");
+                return;
+            }
+        }
         boolean hasWifi = isWifiConnected(mContext);
         synchronized (this) {
             for (ServerConnectionSession server : mConnectionsMap.values())

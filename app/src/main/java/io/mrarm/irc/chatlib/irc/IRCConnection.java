@@ -411,6 +411,7 @@ public class IRCConnection extends ServerConnectionApi {
             } else {
                 socket = new Socket(request.getServerIP(), request.getServerPort());
             }
+            socket.setKeepAlive(true);
             socketInputStream = socket.getInputStream();
             socketOutputStream = socket.getOutputStream();
             sendCommand(false, "CAP", false, "LS", "302");

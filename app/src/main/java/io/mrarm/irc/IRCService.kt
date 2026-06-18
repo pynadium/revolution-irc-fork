@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -14,6 +15,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.annotation.Keep
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import io.mrarm.irc.connection.NetworkUtility
@@ -143,7 +145,16 @@ class IRCService : LifecycleService() {
                 )
             notification.setSmallIcon(R.drawable.ic_server_connected)
 
-            startForeground(IDLE_NOTIFICATION_ID, notification.build())
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ServiceCompat.startForeground(
+                    this,
+                    IDLE_NOTIFICATION_ID,
+                    notification.build(),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+                )
+            } else {
+                startForeground(IDLE_NOTIFICATION_ID, notification.build())
+            }
             Log.d(TAG, "onStartCommand: Built persistent foreground notification")
 
         }

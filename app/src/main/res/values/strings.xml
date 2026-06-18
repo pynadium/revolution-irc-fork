@@ -170,6 +170,11 @@
     <string name="nick_unavailable_hint">New nickname</string>
     <string name="nick_unavailable_tried">Tried: %s</string>
 
+    <string name="battery_opt_title">Keep connections alive</string>
+    <string name="battery_opt_message">Disable battery optimization for this app to keep IRC connections active indefinitely while in the background.</string>
+    <string name="battery_opt_grant">Disable optimization</string>
+    <string name="battery_opt_not_now">Not now</string>
+
     <string name="connection_error_command_title">Error processing post-connect commands</string>
     <string name="connection_error_command_notification_desc">An internal error has occurred while trying to process post-connect commands.</string>
     <plurals name="connection_error_command_dialog_content">
