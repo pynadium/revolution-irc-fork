@@ -229,7 +229,11 @@ public class MessageCommandHandler implements CommandHandler {
         boolean isDirectMessage = (channel.equalsIgnoreCase(connection.getUserNick()) ||
                 channel.equalsIgnoreCase(sender.getNick()));
         if (isDirectMessage)
-            channel = sender.getNick();
+            // Lowercased so the query's channel key stays identical across
+            // reconnects and prefix-casing variance from the server, avoiding
+            // duplicate ChannelData/ChannelNotificationManager/messages_logs
+            // entries for what is the same conversation.
+            channel = sender.getNick().toLowerCase();
         try {
             return connection.getJoinedChannelData(channel);
         } catch (NoSuchChannelException exception) {
