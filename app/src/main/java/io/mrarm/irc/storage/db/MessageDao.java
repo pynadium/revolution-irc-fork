@@ -116,6 +116,16 @@ public interface MessageDao {
             """)
     List<IdSizePair> selectOldestGlobal(int limit);
 
+    @Query("""
+                SELECT id,
+                aprox_row_size AS aproxRowSize
+                FROM messages_logs
+                WHERE kind = :kind
+                ORDER BY id ASC
+                LIMIT :limit
+            """)
+    List<IdSizePair> selectOldestGlobalByKind(MessageKind kind, int limit);
+
 
     @Query("""
                 SELECT id,
@@ -126,6 +136,16 @@ public interface MessageDao {
                 LIMIT :limit
             """)
     List<IdSizePair> selectOldestForServer(UUID serverId, int limit);
+
+    @Query("""
+                SELECT id,
+                aprox_row_size AS aproxRowSize
+                FROM messages_logs
+                WHERE serverId = :serverId AND kind = :kind
+                ORDER BY id ASC
+                LIMIT :limit
+            """)
+    List<IdSizePair> selectOldestForServerByKind(UUID serverId, MessageKind kind, int limit);
 
     @Query("""
                 DELETE FROM messages_logs

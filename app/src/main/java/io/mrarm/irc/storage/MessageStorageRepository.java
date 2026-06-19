@@ -24,12 +24,15 @@ import io.mrarm.irc.chatlib.dto.MessageList;
 import io.mrarm.irc.chatlib.dto.MessageSenderInfo;
 import io.mrarm.irc.chatlib.dto.RoomMessageId;
 import io.mrarm.irc.config.AppSettings;
+import io.mrarm.irc.config.ServerConfigData;
+import io.mrarm.irc.config.ServerConfigManager;
 import io.mrarm.irc.infrastructure.threading.AppAsyncExecutor;
 import io.mrarm.irc.storage.db.ChatLogDatabase;
 import io.mrarm.irc.storage.db.ConversationStateDao;
 import io.mrarm.irc.storage.db.IdSizePair;
 import io.mrarm.irc.storage.db.MessageDao;
 import io.mrarm.irc.storage.db.MessageEntity;
+import io.mrarm.irc.storage.db.MessageKind;
 
 public class MessageStorageRepository {
     private static volatile MessageStorageRepository INSTANCE;
@@ -237,13 +240,32 @@ public class MessageStorageRepository {
 
     private void considerAutoCleanup() {
         long globalLimit = AppSettings.getStorageLimitGlobal();
-        if (globalLimit < 0) return;
+        if (globalLimit >= 0) {
+            Long usageObj = dao.getGlobalUsage();
+            long usage = usageObj != null ? usageObj : 0L;
 
-        Long usageObj = dao.getGlobalUsage();
-        long usage = usageObj != null ? usageObj : 0L;
+            if (usage > (long) (globalLimit * AUTO_CLEANUP_HYSTERESIS)) {
+                enforceGlobalLimit(globalLimit);
+            }
+        }
 
-        if (usage > (long) (globalLimit * AUTO_CLEANUP_HYSTERESIS)) {
-            enforceGlobalLimit(globalLimit);
+        considerAutoCleanupPerServer();
+    }
+
+    private void considerAutoCleanupPerServer() {
+        long defaultServerLimit = AppSettings.getStorageLimitServer();
+
+        for (ServerConfigData server : ServerConfigManager.getInstance(context).getServers()) {
+            // storageLimit == 0 means "use default", -1 means "no limit"
+            long limit = server.storageLimit == 0L ? defaultServerLimit : server.storageLimit;
+            if (limit < 0) continue;
+
+            Long usageObj = dao.getUsageForServer(server.uuid);
+            long usage = usageObj != null ? usageObj : 0L;
+
+            if (usage > (long) (limit * AUTO_CLEANUP_HYSTERESIS)) {
+                enforceServerLimit(server.uuid, limit);
+            }
         }
     }
 
@@ -278,7 +300,11 @@ public class MessageStorageRepository {
             int rowsDeleted = 0;
 
             while (freed < toFree) {
-                List<IdSizePair> batch = dao.selectOldestGlobal(CleanupResult.CLEANUP_BATCH);
+                List<IdSizePair> batch = dao.selectOldestGlobalByKind(MessageKind.CHANNEL, CleanupResult.CLEANUP_BATCH);
+                if (batch.isEmpty()) {
+                    // No CHANNEL messages left, fall back to oldest overall
+                    batch = dao.selectOldestGlobal(CleanupResult.CLEANUP_BATCH);
+                }
                 if (batch.isEmpty()) break;
 
                 List<Long> ids = new ArrayList<>(batch.size());
@@ -319,7 +345,12 @@ public class MessageStorageRepository {
 
             while (freed < toFree) {
                 List<IdSizePair> batch =
-                        dao.selectOldestForServer(serverId, CleanupResult.CLEANUP_BATCH);
+                        dao.selectOldestForServerByKind(serverId, MessageKind.CHANNEL, CleanupResult.CLEANUP_BATCH);
+
+                if (batch.isEmpty()) {
+                    // No CHANNEL messages left for this server, fall back to oldest overall
+                    batch = dao.selectOldestForServer(serverId, CleanupResult.CLEANUP_BATCH);
+                }
 
                 if (batch.isEmpty()) break;
 
