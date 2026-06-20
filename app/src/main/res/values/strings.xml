@@ -328,6 +328,8 @@
     <string name="pref_title_font_size">Font size</string>
     <string name="pref_title_hide_join_part">Hide Join/Part messages</string>
     <string name="pref_summary_hide_join_part">Hide all join and leave (part/quit) messages.</string>
+    <string name="pref_title_skip_channel_logging">Don\'t save channel logs</string>
+    <string name="pref_summary_skip_channel_logging">Channel messages won\'t be written to the chat log database. Direct messages are unaffected. Unread counters won\'t track channels while this is on.</string>
     <string name="pref_title_autocorrect">Enable text auto-correct</string>
     <string name="pref_summary_autocorrect">Enable the keyboard-provided auto-correct</string>
     <string name="pref_title_appbar_compact_mode">Hide the network name header</string>

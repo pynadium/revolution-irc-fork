@@ -55,6 +55,8 @@ ChatSettings:
 
     - spec: boolean hideJoinPartMessages = true
       getter: shouldHideJoinPartMessages
+    - spec: boolean skipChannelLogging = false
+      getter: shouldSkipChannelLogging
     - spec: String appbarCompactMode = "auto"
       enum: ["auto", "always", "never"]
     - spec: String sendBoxHistorySwipeMode = "left_to_right"

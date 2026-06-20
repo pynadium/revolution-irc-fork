@@ -4,13 +4,25 @@ import android.util.Log;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 
 import io.mrarm.irc.chatlib.dto.MessageId;
 import io.mrarm.irc.chatlib.dto.MessageInfo;
 import io.mrarm.irc.chatlib.dto.RoomMessageId;
+import io.mrarm.irc.config.ChatSettings;
 import io.mrarm.irc.storage.db.MessageEntity;
+import io.mrarm.irc.storage.db.MessageKind;
 
 public class DefaultMessagePipeline implements MessagePipeline {
+
+    // Session-local ids for messages that are deliberately not persisted
+    // (ChatSettings.shouldSkipChannelLogging()). Counting down from Long.MAX_VALUE keeps
+    // them always greater than any real autoincrement row id, which matters: pagination
+    // (loadOlder/loadNewerAsync) compares ids with plain "<"/">" against real DB ids. A
+    // negative or small ephemeral id would satisfy "id > lastId" against every real row in
+    // the channel, replaying the whole persisted history every time a live message landed
+    // at the bottom and the user scrolled - effectively an infinite scroll.
+    private static final AtomicLong EPHEMERAL_ID_SEQ = new AtomicLong(Long.MAX_VALUE);
 
     private final MessagePipelineContext pipelineContext;
     private final MessageBus messageBus;
@@ -66,6 +78,8 @@ public class DefaultMessagePipeline implements MessagePipeline {
 
     protected MessageId persist(String channelName, MessageInfo message) {
         MessageEntity entity = MessageEntity.from(pipelineContext.serverId, channelName, message);
+        if (entity.kind == MessageKind.CHANNEL && ChatSettings.shouldSkipChannelLogging())
+            return new RoomMessageId(EPHEMERAL_ID_SEQ.getAndDecrement());
         return new RoomMessageId(pipelineContext.repository.insertMessage(entity));
     }
 }

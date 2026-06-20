@@ -96,6 +96,9 @@ public class InterfaceSettingsFragment extends SettingsListFragment
         a.add(new CheckBoxSetting(getString(R.string.pref_title_hide_join_part),
                 getString(R.string.pref_summary_hide_join_part))
                 .linkSetting(prefs, ChatSettings.PREF_HIDE_JOIN_PART_MESSAGES));
+        a.add(new CheckBoxSetting(getString(R.string.pref_title_skip_channel_logging),
+                getString(R.string.pref_summary_skip_channel_logging))
+                .linkSetting(prefs, ChatSettings.PREF_SKIP_CHANNEL_LOGGING));
         a.add(new CheckBoxSetting(getString(R.string.pref_title_autocorrect),
                 getString(R.string.pref_summary_autocorrect))
                 .linkSetting(prefs, ChatSettings.PREF_TEXT_AUTOCORRECT_ENABLED));
