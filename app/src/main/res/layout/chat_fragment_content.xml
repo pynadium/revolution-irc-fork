@@ -46,11 +46,27 @@
                 android:hint="@string/message_hint"
                 android:layout_toRightOf="@id/tab_button"
                 android:layout_toEndOf="@id/tab_button"
-                android:layout_toLeftOf="@+id/send_button"
-                android:layout_toStartOf="@+id/send_button"
+                android:layout_toLeftOf="@+id/whois_button"
+                android:layout_toStartOf="@+id/whois_button"
                 android:paddingTop="8dp"
                 android:paddingBottom="8dp"
                 android:background="@null"/>
+
+            <ImageButton
+                android:id="@+id/whois_button"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_alignTop="@id/send_text"
+                android:layout_alignBottom="@id/send_text"
+                app:srcCompat="@drawable/ic_user"
+                style="@style/Icon"
+                android:visibility="gone"
+                android:layout_toLeftOf="@+id/send_button"
+                android:layout_toStartOf="@+id/send_button"
+                android:contentDescription="@string/action_whois"
+                android:paddingLeft="16dp"
+                android:paddingRight="16dp"
+                android:background="?selectableItemBackgroundBorderless"/>
 
             <ImageButton
                 android:id="@+id/send_button"

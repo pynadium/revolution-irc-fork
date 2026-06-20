@@ -56,6 +56,7 @@ public class ChatFragment extends Fragment implements
     private int mNormalToolbarInset;
     private OneTimeMessageJump mMessageJump;
     private String mAutoOpenChannel;
+    private boolean mIsScrolling = false;
 
     public static ChatFragment newInstance(ServerConnectionSession server, String channel, String messageId) {
         ChatFragment fragment = new ChatFragment();
@@ -116,6 +117,13 @@ public class ChatFragment extends Fragment implements
 
             @Override
             public void onPageScrollStateChanged(int i) {
+                mIsScrolling = (i != ViewPager.SCROLL_STATE_IDLE);
+                // ViewPager fires setUserVisibleHint(true) on the destination page as soon as
+                // a swipe starts, not once it settles - so the unread check done at that point
+                // can fire on a page the user is only passing through, or run before the
+                // RecyclerView has laid out. Re-check once the swipe actually settles.
+                if (!mIsScrolling)
+                    recheckCurrentPageUnread();
             }
         });
 
@@ -311,6 +319,19 @@ public class ChatFragment extends Fragment implements
 
     public String getCurrentChannel() {
         return mSectionsPagerAdapter.getChannel(mViewPager.getCurrentItem());
+    }
+
+    public boolean isScrolling() {
+        return mIsScrolling;
+    }
+
+    private void recheckCurrentPageUnread() {
+        int pos = mViewPager.getCurrentItem();
+        long itemId = mSectionsPagerAdapter.getItemId(pos);
+        String tag = "android:switcher:" + mViewPager.getId() + ":" + itemId;
+        Fragment f = getChildFragmentManager().findFragmentByTag(tag);
+        if (f instanceof ChatMessagesFragment)
+            ((ChatMessagesFragment) f).recheckUnread();
     }
 
     public ChatFragmentSendMessageHelper getSendMessageHelper() {

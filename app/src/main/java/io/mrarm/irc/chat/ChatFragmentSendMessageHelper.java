@@ -59,6 +59,7 @@ public class ChatFragmentSendMessageHelper implements SendMessageHelper.Callback
     private TextFormatBar mFormatBar;
     private ImageView mSendIcon;
     private ImageView mTabIcon;
+    private View mWhoisIcon;
     private View mClientCommandErrorContainer;
     private TextView mClientCommandErrorText;
     private View mServerMessagesContainer;
@@ -78,6 +79,11 @@ public class ChatFragmentSendMessageHelper implements SendMessageHelper.Callback
         mSendText = rootView.findViewById(R.id.send_text);
         mSendIcon = rootView.findViewById(R.id.send_button);
         mTabIcon = rootView.findViewById(R.id.tab_button);
+        mWhoisIcon = rootView.findViewById(R.id.whois_button);
+        mWhoisIcon.setOnClickListener((View v) -> {
+            if (mCurrentChannel != null)
+                showWhoisDialog(mCurrentChannel);
+        });
 
         mSendText.setFormatBar(mFormatBar);
         mSendText.setCustomSelectionActionModeCallback(new FormatItemActionMode());
@@ -206,6 +212,36 @@ public class ChatFragmentSendMessageHelper implements SendMessageHelper.Callback
         mSendText.setHistory(uiData.getSentMessageHistory());
         mSendText.setText(uiData.getCurrentText());
         mSendText.setSelection(mSendText.getText().length());
+        mWhoisIcon.setVisibility(isDirectMessage(name) ? View.VISIBLE : View.GONE);
+    }
+
+    private boolean isDirectMessage(String channel) {
+        if (channel == null || channel.isEmpty())
+            return false;
+        if (!(mFragment.getConnectionInfo().getApiInstance() instanceof ServerConnectionApi api))
+            return false;
+        return !api.getServerConnectionData().getSupportList()
+                .getSupportedChannelTypes().contains(channel.charAt(0));
+    }
+
+    private void showWhoisDialog(String nick) {
+        IRCConnection connection = (IRCConnection) mFragment.getConnectionInfo().getApiInstance();
+        connection.sendWhois(nick, (WhoisInfo whoisInfo) -> {
+            mFragment.requireActivity().runOnUiThread(() -> {
+                UserBottomSheetDialog dialog = new UserBottomSheetDialog(mContext);
+                dialog.setConnection(mFragment.getConnectionInfo());
+                dialog.setOpenHandler((conn, n) -> {
+                    NavigationHost host =
+                            (NavigationHost) mFragment.requireActivity();
+                    host.getNavigator().openServer(conn, n);
+                });
+                dialog.setData(whoisInfo);
+                Dialog d = dialog.show();
+                if (mFragment.requireActivity() instanceof DialogHost host) {
+                    host.setFragmentDialog(d);
+                }
+            });
+        }, null);
     }
 
     public void setCurrentChannelMembers(List<NickWithPrefix> members) {

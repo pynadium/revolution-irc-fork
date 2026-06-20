@@ -76,7 +76,13 @@ public class ChatMessagesAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
     }
 
     public long getFirstMessageId() {
-        for (Item it : mPrependedMessages) {
+        // mPrependedMessages is built back-to-front by addMessagesToTop() (oldest item
+        // ends up at the end of the list, like getMessage(0) expects) - iterate in reverse
+        // here too, otherwise this returns the newest id of the last prepended batch
+        // instead of the oldest, which makes loadOlderAsync re-fetch overlapping messages
+        // and loop forever on conversations long enough to need a second page.
+        for (int i = mPrependedMessages.size() - 1; i >= 0; i--) {
+            Item it = mPrependedMessages.get(i);
             if (it instanceof MessageItem)
                 return ((RoomMessageId) ((MessageItem) it).mMessageId).getId();
         }
