@@ -62,7 +62,6 @@ import io.mrarm.irc.job.RemoveDataTask;
 import io.mrarm.irc.message.MessageBus;
 import io.mrarm.irc.storage.MessageStorageRepository;
 import io.mrarm.irc.util.LongPressSelectTouchListener;
-import io.mrarm.irc.util.ScrollPosLinearLayoutManager;
 
 @Keep
 public class ChatMessagesFragment extends Fragment implements StatusMessageListener,
@@ -86,7 +85,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
     private MessageSenderInfo mChannelTopicSetBy;
     private Date mChannelTopicSetOn;
     private RecyclerView mRecyclerView;
-    private ScrollPosLinearLayoutManager mLayoutManager;
+    private LinearLayoutManager mLayoutManager;
     private ChatMessagesAdapter mAdapter;
     private ServerStatusMessagesAdapter mStatusAdapter;
     private List<StatusMessageInfo> mStatusMessages;
@@ -103,6 +102,13 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
     private long mUnreadCheckedFirst = -1;
     private long mUnreadCheckedLast = -1;
     private MessageId mUnreadCheckFor;
+
+    // Tracks "is the user following the live feed" independent of layout snapshots taken at
+    // message-arrival time - LinearLayoutManager only reflects the last completed layout pass,
+    // so back-to-back messages arriving faster than a layout/draw cycle would otherwise see a
+    // stale last-visible position and silently skip the auto-scroll for everything after the
+    // first message in the burst.
+    private volatile boolean mAtBottom = true;
 
     private MessageStorageRepository mRoomRepo;
     private final Handler mMainHandler = new Handler(Looper.getMainLooper());
@@ -283,13 +289,25 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
             mUnreadText = rootView.findViewById(R.id.unread_counter);
             mUnreadDiscard = rootView.findViewById(R.id.unread_counter_discard);
         }
-        mLayoutManager = new ScrollPosLinearLayoutManager(getContext());
+        mLayoutManager = new LinearLayoutManager(getContext());
         mLayoutManager.setStackFromEnd(true);
         mRecyclerView.setLayoutManager(mLayoutManager);
+        // notifyItemInserted() is immediately followed by scrollToPosition() on every
+        // incoming message (see onMessage()) - with the default animator active those two
+        // fight each other and RecyclerView aborts mid-animation by detaching and
+        // re-attaching every visible child, which flashes as the whole list briefly
+        // going blank.
+        mRecyclerView.setItemAnimator(null);
 
         mRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
+                int count = mAdapter == null
+                        ? (mStatusAdapter == null ? 0 : mStatusAdapter.getItemCount())
+                        : mAdapter.getItemCount();
+                int last = mLayoutManager.findLastVisibleItemPosition();
+                mAtBottom = last >= 0 && last >= count - 1;
+
                 if (mAdapter == null)
                     return;
                 checkForUnreadMessages();
@@ -482,10 +500,15 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
             View v = mRecyclerView.getLayoutManager().findViewByPosition(index);
             if (v != null && getUserVisibleHint() && !isInScrollAnimation() &&
                     mRecyclerView.getLayoutManager().isViewPartiallyVisible(v, true, true)) {
+                // Already actively looking at the unread message (e.g. auto-scrolled to the
+                // live bottom) - don't flash the "new messages" divider just to clear it again
+                // on the next message.
                 unread = 0;
                 mgr.clearUnreadMessages();
+                mAdapter.setNewMessagesStart(null);
+            } else {
+                mAdapter.setNewMessagesStart(unreadMsg);
             }
-            mAdapter.setNewMessagesStart(unreadMsg);
         } else {
             mAdapter.setNewMessagesStart(null);
         }
@@ -660,16 +683,6 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         return mStatusAdapter != null;
     }
 
-    // Must be called BEFORE the new item(s) are inserted into the adapter - a single
-    // incoming message can add 1 or 2 items (it may carry a day-marker), so checking
-    // "was at bottom" against the post-insert count is off by one whenever a day
-    // boundary is crossed, silently skipping the auto-scroll.
-    private boolean isScrolledToBottom() {
-        int count = mAdapter == null ? mStatusAdapter.getItemCount() : mAdapter.getItemCount();
-        int i = Math.max(mLayoutManager.findLastVisibleItemPosition(), mLayoutManager.getPendingScrollPosition());
-        return i >= count - 1;
-    }
-
     private void scrollToBottom() {
         int count = mAdapter == null ? mStatusAdapter.getItemCount() : mAdapter.getItemCount();
         mRecyclerView.scrollToPosition(count - 1);
@@ -692,21 +705,28 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
 
             if (!getUserVisibleHint() && mAdapter.getNewMessagesStart() == null)
                 mAdapter.setNewMessagesStart(messageId);
-            boolean wasAtBottom = mRecyclerView != null && isScrolledToBottom();
+            boolean wasAtBottom = mRecyclerView != null && mAtBottom;
             mAdapter.appendMessage(messageInfo, messageId);
-            if (wasAtBottom)
+            if (wasAtBottom) {
                 scrollToBottom();
+                // Re-arm immediately: onScrolled() won't confirm this scroll until the next
+                // layout pass, so a second message arriving before then must still see "at
+                // bottom" rather than a stale pre-append layout snapshot.
+                mAtBottom = true;
+            }
         });
     }
 
     @Override
     public void onStatusMessage(StatusMessageInfo statusMessageInfo) {
         updateMessageList(() -> {
-            boolean wasAtBottom = mRecyclerView != null && isScrolledToBottom();
+            boolean wasAtBottom = mRecyclerView != null && mAtBottom;
             mStatusMessages.add(statusMessageInfo);
             mStatusAdapter.notifyItemInserted(mStatusMessages.size() - 1);
-            if (wasAtBottom)
+            if (wasAtBottom) {
                 scrollToBottom();
+                mAtBottom = true;
+            }
         });
     }
 
