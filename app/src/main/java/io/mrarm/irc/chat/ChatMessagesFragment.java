@@ -171,6 +171,15 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         return mMessageFilterOptions;
     }
 
+    private List<Integer> getExcludeTypesForQuery() {
+        if (mMessageFilterOptions == null || mMessageFilterOptions.excludeMessageTypes == null)
+            return Collections.emptyList();
+        List<Integer> ret = new ArrayList<>(mMessageFilterOptions.excludeMessageTypes.size());
+        for (MessageInfo.MessageType type : mMessageFilterOptions.excludeMessageTypes)
+            ret.add(type.asInt());
+        return ret;
+    }
+
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -297,6 +306,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
                             mChannelName,
                             firstId,
                             100,
+                            getExcludeTypesForQuery(),
                             (olderList) -> {
                                 MessageList messages = mRoomRepo.toMessageListFromRoom(olderList);
                                 updateMessageList(() -> {
@@ -320,6 +330,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
                             mChannelName,
                             lastId,
                             100,
+                            getExcludeTypesForQuery(),
                             (newerList) -> {
                                 MessageList messages = mRoomRepo.toMessageListFromRoom(newerList);
                                 updateMessageList(() -> {
@@ -423,6 +434,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         if (nearMessageRoomId != null) {
 
             mRoomRepo.loadNearAsync(serverId, mChannelName, nearMessageRoomId, 100,
+                    getExcludeTypesForQuery(),
                     (list) -> {
                         MessageList msgList = mRoomRepo.toMessageListFromRoom(list);
                         updateMessageList(() -> {
@@ -443,7 +455,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         }
 
         // === CASE 2: Normal first loadConnectedServers (most recent 100 messages) ===
-        mRoomRepo.loadRecentAsync(serverId, mChannelName, 100, (msgList) -> {
+        mRoomRepo.loadRecentAsync(serverId, mChannelName, 100, getExcludeTypesForQuery(), (msgList) -> {
             updateMessageList(() -> {
                 mAdapter.setMessages(msgList.getMessages(), msgList.getMessageIds());
 

@@ -87,33 +87,37 @@ public class MessageStorageRepository {
 
     // Async variants
     public void loadOlderAsync(UUID serverId, String channel, long beforeId, int limit,
+                               List<Integer> excludeTypes,
                                Consumer<List<MessageEntity>> callback) {
-        AppAsyncExecutor.io(() -> dao.loadBefore(serverId, channel, beforeId, limit),
+        AppAsyncExecutor.io(() -> dao.loadBefore(serverId, channel, beforeId, limit, excludeTypes),
                 callback);
     }
 
     public void loadNewerAsync(UUID serverId, String channel, long afterId, int limit,
+                               List<Integer> excludeTypes,
                                Consumer<List<MessageEntity>> callback) {
-        AppAsyncExecutor.io(() -> dao.loadAfter(serverId, channel, afterId, limit),
+        AppAsyncExecutor.io(() -> dao.loadAfter(serverId, channel, afterId, limit, excludeTypes),
                 callback);
     }
 
     public void loadRecentAsync(UUID serverId, String channel, int limit,
+                                List<Integer> excludeTypes,
                                 Consumer<MessageList> uiCallback) {
-        AppAsyncExecutor.io(() -> toMessageListFromRoom(dao.loadRecent(serverId, channel, limit)),
+        AppAsyncExecutor.io(() -> toMessageListFromRoom(dao.loadRecent(serverId, channel, limit, excludeTypes)),
                 uiCallback
         );
     }
 
     public void loadNearAsync(UUID serverId, String channel, long centerId, int limit,
+                              List<Integer> excludeTypes,
                               Consumer<List<MessageEntity>> callback) {
 
         AppAsyncExecutor.io(() -> {
             // older → chronological descending, so reverse later
-            List<MessageEntity> older = dao.loadBefore(serverId, channel, centerId, limit);
+            List<MessageEntity> older = dao.loadBefore(serverId, channel, centerId, limit, excludeTypes);
 
             // newer → chronological ascending
-            List<MessageEntity> newer = dao.loadAfter(serverId, channel, centerId, limit);
+            List<MessageEntity> newer = dao.loadAfter(serverId, channel, centerId, limit, excludeTypes);
 
             List<MessageEntity> combined = new ArrayList<>(older.size() + newer.size());
 

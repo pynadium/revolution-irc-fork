@@ -22,10 +22,12 @@ public interface MessageDao {
     @Query("""
                 SELECT * FROM messages_logs
                 WHERE serverId = :serverId AND channel = :channel AND id < :beforeId
+                AND type NOT IN (:excludeTypes)
                 ORDER BY id DESC
                 LIMIT :limit
             """)
-    List<MessageEntity> loadBefore(UUID serverId, String channel, long beforeId, int limit);
+    List<MessageEntity> loadBefore(UUID serverId, String channel, long beforeId, int limit,
+                                    List<Integer> excludeTypes);
 
     /**
      * Load messages newer than a certain ID (scroll down)
@@ -33,10 +35,12 @@ public interface MessageDao {
     @Query("""
                 SELECT * FROM messages_logs
                 WHERE serverId = :serverId AND channel = :channel AND id > :afterId
+                AND type NOT IN (:excludeTypes)
                 ORDER BY id ASC
                 LIMIT :limit
             """)
-    List<MessageEntity> loadAfter(UUID serverId, String channel, long afterId, int limit);
+    List<MessageEntity> loadAfter(UUID serverId, String channel, long afterId, int limit,
+                                   List<Integer> excludeTypes);
 
     /**
      * Initial tail loadConnectedServers
@@ -44,10 +48,12 @@ public interface MessageDao {
     @Query("""
                 SELECT * FROM messages_logs
                 WHERE serverId = :serverId AND channel = :channel
+                AND type NOT IN (:excludeTypes)
                 ORDER BY id DESC
                 LIMIT :limit
             """)
-    List<MessageEntity> loadRecent(UUID serverId, String channel, int limit);
+    List<MessageEntity> loadRecent(UUID serverId, String channel, int limit,
+                                    List<Integer> excludeTypes);
 
     /**
      * Find specific message
