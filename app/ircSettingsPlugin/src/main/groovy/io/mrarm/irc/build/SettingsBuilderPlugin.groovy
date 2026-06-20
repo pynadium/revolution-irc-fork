@@ -11,9 +11,12 @@ public class SettingsBuilderPlugin implements Plugin<Project> {
         def android = (AppExtension) project.extensions.getByName("android")
 
         def genDir = new File(project.getBuildDir(), "generated/source/settings")
-        def genTask = project.task("generateSettings") {
+        def settingsFile = project.file("settings.yml")
+        def genTask = project.register("generateSettings") {
+            inputs.file(settingsFile)
+            outputs.dir(genDir)
             doLast {
-                SettingsBuilder.generateJavaFiles(project.file("settings.yml"), genDir)
+                SettingsBuilder.generateJavaFiles(settingsFile, genDir)
             }
         }
 
