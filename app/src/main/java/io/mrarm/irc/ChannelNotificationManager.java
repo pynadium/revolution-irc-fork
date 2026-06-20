@@ -184,6 +184,10 @@ public class ChannelNotificationManager {
         }
         if (updateSummary)
             NotificationManager.getInstance().updateSummaryNotification(context, null);
+        // Opening the channel is the user marking it as read - don't make them
+        // scroll past the first unread message for the badge to clear.
+        if (opened)
+            clearUnreadMessages();
     }
 
     public void clearUnreadMessages() {
