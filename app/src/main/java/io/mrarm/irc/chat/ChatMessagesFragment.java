@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import io.mrarm.irc.ChannelNotificationManager;
@@ -589,7 +590,10 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
 
     @Override
     public void onUnreadMessageCountChanged(ServerConnectionSession info, String channel, int messageCount, int oldMessageCount) {
-        if (channel.equals(mChannelName)) {
+        // channel can be null - a ChannelNotificationManager keyed by a null/empty channel
+        // name shows up for malformed protocol events (e.g. a CTCP reply with no resolvable
+        // target channel); don't crash every other open fragment when that happens.
+        if (Objects.equals(channel, mChannelName)) {
             updateMessageList(this::updateUnreadCounter);
         }
     }
@@ -598,9 +602,13 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
     public void onResume() {
         super.onResume();
         if (getUserVisibleHint()) {
-            mConnection.getNotificationManager().getChannelManager(mChannelName, true).setOpened(getContext(), true);
-            mConnection.getNotificationManager().addUnreadMessageCountCallback(this);
-            updateUnreadCounter();
+            // mChannelName is null for the server-status fragment (newStatusInstance() never
+            // sets ARG_CHANNEL_NAME) - it has no per-channel unread/notification state.
+            if (mChannelName != null) {
+                mConnection.getNotificationManager().getChannelManager(mChannelName, true).setOpened(getContext(), true);
+                mConnection.getNotificationManager().addUnreadMessageCountCallback(this);
+                updateUnreadCounter();
+            }
         }
         if (mConnection != null && getUserVisibleHint() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
             IRCChooserTargetService.setChannel(mConnection.getUUID(), mChannelName);
@@ -610,11 +618,13 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
     public void onPause() {
         super.onPause();
         MainActivity activity = (MainActivity) getActivity();
-        if (getUserVisibleHint() && (activity == null || !activity.isAppExiting()))
-            mConnection.getNotificationManager().getChannelManager(mChannelName, true).setOpened(getContext(), false);
+        if (mChannelName != null) {
+            if (getUserVisibleHint() && (activity == null || !activity.isAppExiting()))
+                mConnection.getNotificationManager().getChannelManager(mChannelName, true).setOpened(getContext(), false);
+            mConnection.getNotificationManager().removeUnreadMessageCountCallback(this);
+        }
         if (mConnection != null && getUserVisibleHint() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
             IRCChooserTargetService.setChannel(mConnection.getUUID(), mChannelName);
-        mConnection.getNotificationManager().removeUnreadMessageCountCallback(this);
         mUnreadCtr.setVisibility(View.GONE);
     }
 

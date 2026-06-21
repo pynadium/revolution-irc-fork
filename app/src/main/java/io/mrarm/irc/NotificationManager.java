@@ -50,14 +50,23 @@ public class NotificationManager {
 
     public void processMessage(Context context, ServerConnectionSession connection, String channel,
                                MessageInfo info, MessageId messageId) {
+        if (channel == null) {
+            // No resolvable target channel for this event (e.g. a malformed/edge-case CTCP
+            // reply) - getChannelManager(null, true) would otherwise create a permanent
+            // phantom ChannelNotificationManager keyed by null that later broadcasts a null
+            // channel to every other open fragment's listener.
+            Log.w(TAG, "processMessage() dropping event with null channel: " + info.getType());
+            return;
+        }
         ChannelNotificationManager channelManager = connection.getNotificationManager().getChannelManager(channel, true);
-        if (info.getType() == MessageInfo.MessageType.NORMAL ||
+        boolean isSelf = info.getSender() != null &&
+                info.getSender().getNick().equals(connection.getUserNick());
+        if (!isSelf && (info.getType() == MessageInfo.MessageType.NORMAL ||
                 info.getType() == MessageInfo.MessageType.ME ||
-                info.getType() == MessageInfo.MessageType.NOTICE)
+                info.getType() == MessageInfo.MessageType.NOTICE))
             channelManager.addUnreadMessage(messageId);
 
-        if (info.getMessage() == null || info.getSender() == null ||
-                info.getSender().getNick().equals(connection.getUserNick()))
+        if (info.getMessage() == null || info.getSender() == null || isSelf)
             return;
 
         NotificationRule rule = findNotificationRule(connection, channel, info);
