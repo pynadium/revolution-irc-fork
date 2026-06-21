@@ -67,24 +67,35 @@ public interface MessageDao {
     @Query("SELECT DISTINCT serverId FROM messages_logs")
     List<UUID> getDistinctServerIds();
 
-    // Grouped case-insensitively (COLLATE NOCASE): rows logged before nick/channel-casing
-    // normalization existed can have the same conversation stored under different casing
-    // (e.g. "Test1" vs "test1") - without this, the filter dropdown would list it twice.
+    // `channel` is the grouping/identity key - for DMs it's intentionally forced to lowercase
+    // by ServerConnectionData.onChannelJoined for any conversation active after that fix, so
+    // it no longer carries the contact's real casing. The real casing only survives in `sender`
+    // on INCOMING rows (sender == the contact, case-preserved). MessageStorageRepository uses
+    // this id to look up that row's `sender`/`channel` and pick whichever reflects the real nick.
     @Query("""
-                SELECT MIN(channel) FROM messages_logs
+                SELECT MAX(id) FROM messages_logs
                 WHERE serverId = :serverId
                 GROUP BY channel COLLATE NOCASE
-                ORDER BY MIN(channel) COLLATE NOCASE
             """)
-    List<String> getDistinctChannels(UUID serverId);
+    List<Long> getMostRecentIdPerChannelGroup(UUID serverId);
 
+    @Query("SELECT * FROM messages_logs WHERE id IN (:ids)")
+    List<MessageEntity> findByIds(List<Long> ids);
+
+    // Same "most recent real casing" pick as getDistinctChannels above, instead of MIN(sender).
     @Query("""
-                SELECT MIN(sender) FROM messages_logs
+                SELECT sender FROM messages_logs
                 WHERE serverId = :serverId
                 AND (:channel IS NULL OR channel = :channel COLLATE NOCASE)
                 AND sender IS NOT NULL
-                GROUP BY sender COLLATE NOCASE
-                ORDER BY MIN(sender) COLLATE NOCASE
+                AND id IN (
+                    SELECT MAX(id) FROM messages_logs
+                    WHERE serverId = :serverId
+                    AND (:channel IS NULL OR channel = :channel COLLATE NOCASE)
+                    AND sender IS NOT NULL
+                    GROUP BY sender COLLATE NOCASE
+                )
+                ORDER BY sender COLLATE NOCASE
             """)
     List<String> getDistinctSenders(UUID serverId, String channel);
 

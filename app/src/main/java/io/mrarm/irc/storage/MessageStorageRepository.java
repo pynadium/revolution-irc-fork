@@ -117,7 +117,18 @@ public class MessageStorageRepository {
     }
 
     public void getDistinctChannelsAsync(UUID serverId, Consumer<List<String>> callback) {
-        AppAsyncExecutor.io(() -> dao.getDistinctChannels(serverId), callback);
+        AppAsyncExecutor.io(() -> {
+            List<Long> ids = dao.getMostRecentIdPerChannelGroup(serverId);
+            List<MessageEntity> rows = dao.findByIds(ids);
+            List<String> result = new ArrayList<>(rows.size());
+            for (MessageEntity e : rows) {
+                // Prefer the real-cased contact nick from an incoming row (sender == channel,
+                // case-insensitively) over `channel` itself, which is forced lowercase for DMs.
+                result.add(e.sender != null && e.sender.equalsIgnoreCase(e.channel) ? e.sender : e.channel);
+            }
+            result.sort(String::compareToIgnoreCase);
+            return result;
+        }, callback);
     }
 
     public void getDistinctSendersAsync(UUID serverId, String channel, Consumer<List<String>> callback) {
