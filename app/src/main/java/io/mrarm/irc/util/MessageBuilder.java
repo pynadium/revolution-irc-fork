@@ -447,7 +447,11 @@ public class MessageBuilder {
         } else if (message.getType() == StatusMessageInfo.MessageType.CTCP_PING) {
             text = mContext.getString(R.string.message_ctcp_ping);
         } else if (message.getType() == StatusMessageInfo.MessageType.CTCP_VERSION) {
-            text = mContext.getString(R.string.message_ctcp_version);
+            text = mContext.getString(R.string.message_ctcp_version, message.getMessage());
+        } else if (message.getType() == StatusMessageInfo.MessageType.CTCP_PING_REPLY) {
+            text = mContext.getString(R.string.message_ctcp_ping_reply, message.getMessage());
+        } else if (message.getType() == StatusMessageInfo.MessageType.CTCP_VERSION_REPLY) {
+            text = mContext.getString(R.string.message_ctcp_version_reply, message.getMessage());
         } else if (message.getType() == StatusMessageInfo.MessageType.WHOIS) {
             SpannableString str = new SpannableString(mContext.getString(R.string.message_whois,
                     ((WhoisStatusMessageInfo) message).getWhoisInfo().getNick()));
