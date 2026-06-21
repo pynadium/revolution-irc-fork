@@ -60,7 +60,9 @@ public class WhoisCommandHandler extends RequestResponseCommandHandler<String, W
             }
         }
         if (numeric == RPL_WHOISUSER) {
-            builder.setUserInfo(nick, CommandHandler.getParamWithCheck(params, 2),
+            // `nick` (lowercased above) is only the currentReply/request-tracking key - the
+            // WhoisInfo exposed to the UI should keep the server's actual casing for that nick.
+            builder.setUserInfo(CommandHandler.getParamWithCheck(params, 1), CommandHandler.getParamWithCheck(params, 2),
                     CommandHandler.getParamWithCheck(params, 3), CommandHandler.getParamOrNull(params, 5));
         } else if (numeric == RPL_WHOISSERVER) {
             builder.setServerInfo(CommandHandler.getParamWithCheck(params, 2),

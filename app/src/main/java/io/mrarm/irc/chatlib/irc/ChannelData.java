@@ -53,6 +53,7 @@ public class ChannelData {
     private ServerConnectionData connection;
 
     private String name;
+    private String displayName;
     private String topic;
     private MessageSenderInfo topicSetBy;
     private Date topicSetOn;
@@ -68,6 +69,7 @@ public class ChannelData {
     public ChannelData(ServerConnectionData connection, String name) {
         this.connection = connection;
         this.name = name;
+        this.displayName = name;
     }
 
     // NOTE Stored metadata load
@@ -98,6 +100,23 @@ public class ChannelData {
     public void setName(String name) {
         synchronized (this) {
             this.name = name;
+        }
+    }
+
+    // Display-only, original-case form of the canonical channel/nick key (`name`).
+    // For DMs, `name` is forced lowercase so the same conversation always maps to the
+    // same messages_logs/conversation_state row regardless of nick-casing drift across
+    // reconnects - `displayName` tracks the latest-observed casing for UI rendering only,
+    // never used for storage or lookups.
+    public String getDisplayName() {
+        synchronized (this) {
+            return displayName != null ? displayName : name;
+        }
+    }
+
+    public void setDisplayName(String displayName) {
+        synchronized (this) {
+            this.displayName = displayName;
         }
     }
 

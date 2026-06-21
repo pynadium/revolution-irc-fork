@@ -258,20 +258,30 @@ public class MessageCommandHandler implements CommandHandler {
     private ChannelData getChannelData(ServerConnectionData connection, MessagePrefix sender, String channel) {
         boolean isDirectMessage = (channel.equalsIgnoreCase(connection.getUserNick()) ||
                 channel.equalsIgnoreCase(sender.getNick()));
-        if (isDirectMessage)
+        String displayChannel = channel;
+        if (isDirectMessage) {
+            displayChannel = sender.getNick();
             // Lowercased so the query's channel key stays identical across
             // reconnects and prefix-casing variance from the server, avoiding
             // duplicate ChannelData/ChannelNotificationManager/messages_logs
-            // entries for what is the same conversation.
+            // entries for what is the same conversation. Original casing is kept
+            // separately as ChannelData.displayName, refreshed below, for UI display only.
             channel = sender.getNick().toLowerCase();
+        }
         try {
-            return connection.getJoinedChannelData(channel);
+            ChannelData data = connection.getJoinedChannelData(channel);
+            if (isDirectMessage)
+                data.setDisplayName(displayChannel);
+            return data;
         } catch (NoSuchChannelException exception) {
             if (isDirectMessage || (!channel.isEmpty() &&
                     !connection.getSupportList().getSupportedChannelTypes().contains(channel.charAt(0)))) {
                 connection.onChannelJoined(channel);
                 try {
-                    return connection.getJoinedChannelData(channel);
+                    ChannelData data = connection.getJoinedChannelData(channel);
+                    if (isDirectMessage)
+                        data.setDisplayName(displayChannel);
+                    return data;
                 } catch (NoSuchChannelException e) {
                     return null;
                 }

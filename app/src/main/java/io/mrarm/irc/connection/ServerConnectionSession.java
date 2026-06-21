@@ -12,6 +12,7 @@ import io.mrarm.irc.chat.ChatUIData;
 import io.mrarm.irc.chatlib.ChannelListListener;
 import io.mrarm.irc.chatlib.ChatApi;
 import io.mrarm.irc.chatlib.NickUnavailableException;
+import io.mrarm.irc.chatlib.NoSuchChannelException;
 import io.mrarm.irc.chatlib.dto.MessageId;
 import io.mrarm.irc.chatlib.irc.IRCConnection;
 import io.mrarm.irc.chatlib.irc.IRCConnectionRequest;
@@ -463,6 +464,20 @@ public class ServerConnectionSession {
     public List<String> getChannels() {
         synchronized (this) {
             return mChannels;
+        }
+    }
+
+    // Cosmetic-only original-case form of `channel` (which stays canonical/lowercase-for-DM
+    // for storage and lookups - see ChannelData.getDisplayName()). Falls back to `channel`
+    // itself if the channel isn't currently joined.
+    public String getChannelDisplayName(String channel) {
+        ChatApi api = getApiInstance();
+        if (!(api instanceof ServerConnectionApi))
+            return channel;
+        try {
+            return ((ServerConnectionApi) api).getChannelData(channel).getDisplayName();
+        } catch (NoSuchChannelException e) {
+            return channel;
         }
     }
 

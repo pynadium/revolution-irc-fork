@@ -94,6 +94,7 @@
     <string name="action_close">Close</string>
     <string name="action_disconnect_and_close">Disconnect and close</string>
     <string name="action_servers">Manage servers</string>
+    <string name="action_chat_logs">Chat logs</string>
     <string name="action_add_below">Add below</string>
     <string name="action_add_rule">Add rule</string>
     <string name="action_reorder">Reorder</string>
@@ -432,6 +433,12 @@
     <string name="theme_custom_default_name">@string/value_custom</string>
 
     <string name="title_activity_theme_editor">Theme editor</string>
+    <string name="title_activity_chat_logs">Chat logs</string>
+    <string name="chat_log_empty">No messages match the current filters</string>
+    <string name="chat_log_all_channels">All channels</string>
+    <string name="chat_log_all_senders">All senders</string>
+    <string name="chat_log_deleted_server">Deleted server (%1$s)</string>
+    <string name="chat_log_export_success">Chat log exported</string>
 
     <string name="theme_category_common">Common</string>
     <string name="theme_base">Base theme</string>

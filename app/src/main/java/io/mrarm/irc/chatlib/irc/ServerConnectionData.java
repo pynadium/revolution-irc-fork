@@ -178,10 +178,20 @@ public class ServerConnectionData {
 
     public void onChannelJoined(String channelName) {
         String lChannelName = channelName.toLowerCase();
+        // DM targets (no channel-type prefix, e.g. a bare nick) are canonicalized to
+        // lowercase here too - not just in MessageCommandHandler's incoming path - so a
+        // DM opened via /msg (or any other join entry point) always lands on the same
+        // ChannelData/messages_logs/conversation_state row as one opened by an incoming
+        // message, regardless of which path created it first or what casing was used.
+        boolean isDirectMessage = !channelName.isEmpty()
+                && !supportList.getSupportedChannelTypes().contains(channelName.charAt(0));
+        String canonicalName = isDirectMessage ? lChannelName : channelName;
         synchronized (joinedChannels) {
             if (joinedChannels.containsKey(lChannelName))
                 return;
-            ChannelData data = new ChannelData(this, channelName);
+            ChannelData data = new ChannelData(this, canonicalName);
+            if (isDirectMessage)
+                data.setDisplayName(channelName);
             data.loadFromStoredData();
             joinedChannels.put(lChannelName, data);
         }
