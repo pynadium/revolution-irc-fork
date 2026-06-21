@@ -11,10 +11,13 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.io.Writer;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -106,6 +109,59 @@ public class MessageStorageRepository {
         AppAsyncExecutor.io(() -> toMessageListFromRoom(dao.loadRecent(serverId, channel, limit, excludeTypes)),
                 uiCallback
         );
+    }
+
+    // Log viewer: filter discovery + filtered paging
+    public void getDistinctServerIdsAsync(Consumer<List<UUID>> callback) {
+        AppAsyncExecutor.io(dao::getDistinctServerIds, callback);
+    }
+
+    public void getDistinctChannelsAsync(UUID serverId, Consumer<List<String>> callback) {
+        AppAsyncExecutor.io(() -> dao.getDistinctChannels(serverId), callback);
+    }
+
+    public void getDistinctSendersAsync(UUID serverId, String channel, Consumer<List<String>> callback) {
+        AppAsyncExecutor.io(() -> dao.getDistinctSenders(serverId, channel), callback);
+    }
+
+    public void loadFilteredBeforeAsync(UUID serverId, String channel, String sender, long beforeId,
+                                         int limit, List<Integer> excludeTypes,
+                                         Consumer<List<MessageEntity>> callback) {
+        AppAsyncExecutor.io(() -> dao.loadFilteredBefore(serverId, channel, sender, beforeId, limit, excludeTypes),
+                callback);
+    }
+
+    /**
+     * Streams every row matching the filter to {@code out}, oldest first, one line per message.
+     * Must be called off the main thread; caller owns opening/closing {@code out}.
+     */
+    public void exportFilteredToWriter(UUID serverId, String channel, String sender,
+                                        List<Integer> excludeTypes, Writer out) throws IOException {
+        SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
+        int batchSize = 500;
+        long beforeId = Long.MAX_VALUE;
+
+        List<MessageEntity> batch;
+        List<List<MessageEntity>> batches = new ArrayList<>();
+        do {
+            batch = dao.loadFilteredBefore(serverId, channel, sender, beforeId, batchSize, excludeTypes);
+            if (batch.isEmpty())
+                break;
+            batches.add(batch);
+            beforeId = batch.get(batch.size() - 1).id;
+        } while (batch.size() == batchSize);
+
+        // batches are newest-first overall, each batch newest-first internally; reverse both
+        for (int i = batches.size() - 1; i >= 0; --i) {
+            List<MessageEntity> b = batches.get(i);
+            for (int j = b.size() - 1; j >= 0; --j) {
+                MessageEntity e = b.get(j);
+                out.write("[" + fmt.format(new Date(e.timestamp)) + "] "
+                        + (e.sender != null ? e.sender + ": " : "")
+                        + (e.text != null ? e.text : ""));
+                out.write("\n");
+            }
+        }
     }
 
     public void loadNearAsync(UUID serverId, String channel, long centerId, int limit,

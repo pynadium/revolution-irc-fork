@@ -104,6 +104,10 @@
             android:label="@string/title_activity_theme_editor"
             android:theme="@style/AppTheme.NoActionBar" />
         <activity
+            android:name=".chatlog.ChatLogViewerActivity"
+            android:label="@string/title_activity_chat_logs"
+            android:theme="@style/AppTheme.NoActionBar" />
+        <activity
             android:name=".StorageSettingsActivity"
             android:exported="true"
             android:label="@string/pref_header_storage" />

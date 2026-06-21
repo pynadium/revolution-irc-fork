@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<io.mrarm.irc.view.OpaqueStatusBarRelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main_content"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
+    tools:context=".chatlog.ChatLogViewerActivity">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:theme="?attr/actionBarTheme">
+
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            app:layout_scrollFlags="scroll|enterAlways"
+            app:popupTheme="@style/AppTheme.PopupOverlay"
+            app:title="@string/title_activity_chat_logs" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingLeft="@dimen/activity_horizontal_margin_s4"
+            android:paddingRight="@dimen/activity_horizontal_margin_s4"
+            android:paddingBottom="4dp">
+
+            <io.mrarm.irc.view.AutoResizeSpinner
+                android:id="@+id/filter_server"
+                style="@style/AppTheme.Spinner"
+                android:layout_width="0dp"
+                android:layout_height="45dp"
+                android:layout_weight="1" />
+
+            <io.mrarm.irc.view.AutoResizeSpinner
+                android:id="@+id/filter_channel"
+                style="@style/AppTheme.Spinner"
+                android:layout_width="0dp"
+                android:layout_height="45dp"
+                android:layout_weight="1" />
+
+            <io.mrarm.irc.view.AutoResizeSpinner
+                android:id="@+id/filter_sender"
+                style="@style/AppTheme.Spinner"
+                android:layout_width="0dp"
+                android:layout_height="45dp"
+                android:layout_weight="1" />
+
+        </LinearLayout>
+
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <TextView
+        android:id="@+id/empty_state"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/appbar"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="32dp"
+        android:text="@string/chat_log_empty"
+        android:textAppearance="@style/TextAppearance.AppCompat.Body1"
+        android:visibility="gone" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/list"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/appbar"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+
+</io.mrarm.irc.view.OpaqueStatusBarRelativeLayout>

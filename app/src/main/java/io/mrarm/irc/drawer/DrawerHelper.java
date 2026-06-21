@@ -20,6 +20,7 @@ import io.mrarm.irc.R;
 import io.mrarm.irc.SettingsActivity;
 import io.mrarm.irc.app.navigation.NavigationHost;
 import io.mrarm.irc.chatlib.irc.ServerConnectionApi;
+import io.mrarm.irc.chatlog.ChatLogViewerActivity;
 import io.mrarm.irc.config.AppSettings;
 import io.mrarm.irc.config.SettingsHelper;
 import io.mrarm.irc.config.UiSettingChangeCallback;
@@ -40,6 +41,7 @@ public class DrawerHelper implements ServerConnectionManager.ConnectionsListener
     private DrawerMenuListAdapter mAdapter;
     private DrawerMenuItem mSearchItem;
     private DrawerMenuItem mManageServersItem;
+    private DrawerMenuItem mChatLogsItem;
     private DrawerMenuItem mSettingsItem;
     private boolean mHasRegisteredListeners = false;
     private final NavigationHost mNavigationHost;
@@ -68,6 +70,12 @@ public class DrawerHelper implements ServerConnectionManager.ConnectionsListener
         mAdapter.addTopMenuItem(mSearchItem);
         mManageServersItem = new DrawerMenuItem(r.getString(R.string.action_servers), R.drawable.ic_edit);
         mAdapter.addMenuItem(mManageServersItem);
+        mChatLogsItem = new DrawerMenuItem(r.getString(R.string.action_chat_logs), R.drawable.ic_history);
+        mChatLogsItem.setOnClickListener((View v) -> {
+            activity.startActivity(new Intent(activity, ChatLogViewerActivity.class));
+            mDrawerLayout.closeDrawers();
+        });
+        mAdapter.addMenuItem(mChatLogsItem);
         mSettingsItem = new DrawerMenuItem(r.getString(R.string.action_settings), R.drawable.ic_settings);
         mSettingsItem.setOnClickListener((View view) -> {
             activity.startActivity(new Intent(activity, SettingsActivity.class));

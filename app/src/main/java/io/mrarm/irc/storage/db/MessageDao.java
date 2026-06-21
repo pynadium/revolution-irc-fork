@@ -62,6 +62,50 @@ public interface MessageDao {
     MessageEntity findById(long id);
 
     /**
+     * Log viewer: distinct filter values
+     */
+    @Query("SELECT DISTINCT serverId FROM messages_logs")
+    List<UUID> getDistinctServerIds();
+
+    // Grouped case-insensitively (COLLATE NOCASE): rows logged before nick/channel-casing
+    // normalization existed can have the same conversation stored under different casing
+    // (e.g. "Test1" vs "test1") - without this, the filter dropdown would list it twice.
+    @Query("""
+                SELECT MIN(channel) FROM messages_logs
+                WHERE serverId = :serverId
+                GROUP BY channel COLLATE NOCASE
+                ORDER BY MIN(channel) COLLATE NOCASE
+            """)
+    List<String> getDistinctChannels(UUID serverId);
+
+    @Query("""
+                SELECT MIN(sender) FROM messages_logs
+                WHERE serverId = :serverId
+                AND (:channel IS NULL OR channel = :channel COLLATE NOCASE)
+                AND sender IS NOT NULL
+                GROUP BY sender COLLATE NOCASE
+                ORDER BY MIN(sender) COLLATE NOCASE
+            """)
+    List<String> getDistinctSenders(UUID serverId, String channel);
+
+    /**
+     * Log viewer: filtered scroll-up paging (channel/sender optional, matched case-insensitively
+     * for the same reason as the distinct-value queries above)
+     */
+    @Query("""
+                SELECT * FROM messages_logs
+                WHERE serverId = :serverId
+                AND (:channel IS NULL OR channel = :channel COLLATE NOCASE)
+                AND (:sender IS NULL OR sender = :sender COLLATE NOCASE)
+                AND id < :beforeId
+                AND type NOT IN (:excludeTypes)
+                ORDER BY id DESC
+                LIMIT :limit
+            """)
+    List<MessageEntity> loadFilteredBefore(UUID serverId, String channel, String sender,
+                                            long beforeId, int limit, List<Integer> excludeTypes);
+
+    /**
      * Stats
      */
     @Query("SELECT SUM(aprox_row_size) FROM messages_logs")
