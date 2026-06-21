@@ -35,6 +35,11 @@ import io.mrarm.irc.chatlib.util.SimpleRequestExecutor;
 public class IRCConnection extends ServerConnectionApi {
 
     private static final MessageCommandHandler selfMessageHandler = new MessageCommandHandler();
+    static {
+        // This instance only ever locally replays our own outgoing messages (see
+        // sendMessageInternal below) - it must never run CTCP auto-reply/DCC logic on them.
+        selfMessageHandler.setLocalEchoOnly(true);
+    }
 
     private static final String[] AUTH_COMMAND_PREFIXES = new String[]{"PASS ", "OPER", "PRIVMSG NickServ :IDENTIFY ",
             "NICKSERV IDENTIFY "};

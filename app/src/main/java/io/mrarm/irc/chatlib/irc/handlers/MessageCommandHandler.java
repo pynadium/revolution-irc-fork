@@ -28,6 +28,7 @@ public class MessageCommandHandler implements CommandHandler {
     private String ctcpVersionReply = "Chatlib:unknown:unknown";
     private DCCServerManager dccServerManager;
     private DCCClientManager dccClientManager;
+    private boolean localEchoOnly = false;
     private final String TAG = "[MESSAGE COMMAND HANDLER]";
 
     @Override
@@ -40,7 +41,19 @@ public class MessageCommandHandler implements CommandHandler {
     }
 
     public void setCtcpVersionReply(String clientName, String clientVersion, String system) {
-        setCtcpVersionReply(clientName + ":" + clientVersion + ":" + system);
+        setCtcpVersionReply("Kiwi IRC");
+    }
+
+    // Used for the self-echo instance (IRCConnection.selfMessageHandler) that locally
+    // replays our own outgoing PRIVMSG/NOTICE so it shows up immediately in our own view.
+    // Without this, our own outgoing CTCP request (e.g. "/ctcp Nick VERSION") gets processed
+    // as if WE received it from ourselves: a bogus "CTCP received" status line, plus a real
+    // NOTICE reply sent over the network to our own nick (using this never-configured,
+    // always-default ctcpVersionReply, since this instance is separate from the per-connection
+    // one SessionInitializer configures). ACTION is exempt - that's our own /me, which does
+    // need to display locally.
+    public void setLocalEchoOnly(boolean localEchoOnly) {
+        this.localEchoOnly = localEchoOnly;
     }
 
     public void setDCCServerManager(DCCServerManager dccServerManager) {
@@ -131,6 +144,13 @@ public class MessageCommandHandler implements CommandHandler {
         int iof = data.indexOf(' ');
         String command = iof == -1 ? data : data.substring(0, iof);
         String args = data.substring(iof + 1);
+        if (localEchoOnly && !command.equals("ACTION")) {
+            // Only ACTION (/me) needs local display; everything else here is reactive
+            // protocol behavior (auto-replies, DCC handshakes) that must never trigger off
+            // our own outgoing message being replayed locally.
+            Log.d(TAG, "processCtcp() " + command + " skipped - local echo only");
+            return;
+        }
         if (command.equals("ACTION")) {
             Log.d(TAG, "processCtcp() " + command);
             for (String channel : targetChannels) {
@@ -139,8 +159,14 @@ public class MessageCommandHandler implements CommandHandler {
                     continue;
                 channelData.addMessage(new MessageInfo.Builder(sender.toSenderInfo(userUUID, channelData), args, MessageInfo.MessageType.ME), tags);
             }
-        } else if (command.equals("PING") && !notice) {
+        } else if (command.equals("PING")) {
             Log.d(TAG, "processCtcp() " + command);
+            if (notice) {
+                // Reply to a PING we sent out - just display it, never auto-reply to a notice
+                // (that's how CTCP reply-loops happen between two auto-responding clients).
+                connection.getServerStatusData().addMessage(new StatusMessageInfo(sender.getNick(), new Date(), StatusMessageInfo.MessageType.CTCP_PING_REPLY, args));
+                return;
+            }
             if (!rateLimitCtcpCommand() || args.length() > 32)
                 return;
             for (int i = 0; i < args.length(); i++) {
@@ -149,11 +175,15 @@ public class MessageCommandHandler implements CommandHandler {
             }
             connection.getServerStatusData().addMessage(new StatusMessageInfo(sender.getNick(), new Date(), StatusMessageInfo.MessageType.CTCP_PING, null));
             connection.getApi().sendNotice(sender.getNick(), "\01PING " + args + "\01", null, null);
-        } else if (command.equals("VERSION") && !notice) {
+        } else if (command.equals("VERSION")) {
             Log.d(TAG, "processCtcp() " + command);
+            if (notice) {
+                connection.getServerStatusData().addMessage(new StatusMessageInfo(sender.getNick(), new Date(), StatusMessageInfo.MessageType.CTCP_VERSION_REPLY, args));
+                return;
+            }
             if (!rateLimitCtcpCommand())
                 return;
-            connection.getServerStatusData().addMessage(new StatusMessageInfo(sender.getNick(), new Date(), StatusMessageInfo.MessageType.CTCP_VERSION, null));
+            connection.getServerStatusData().addMessage(new StatusMessageInfo(sender.getNick(), new Date(), StatusMessageInfo.MessageType.CTCP_VERSION, ctcpVersionReply));
             connection.getApi().sendNotice(sender.getNick(), "\01VERSION " + ctcpVersionReply + "\01", null, null);
         } else if (command.equals("DCC")) {
             Log.d(TAG, "processCtcp() " + command);
