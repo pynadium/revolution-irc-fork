@@ -15,6 +15,10 @@
         android:title="@string/action_part_channel"
         app:showAsAction="never" />
     <item
+        android:id="@+id/action_close_all_pms"
+        android:title="@string/action_close_all_pms"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/action_dcc_send"
         android:title="@string/action_dcc_send"
         android:visible="false"

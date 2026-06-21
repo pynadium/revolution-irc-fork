@@ -9,6 +9,7 @@ public class ChatOptionsActionHandler {
         void showJoinChannelDialog();
         void showUserSearchDialog();
         void partCurrentChannel();
+        void closeAllPrivateMessages();
         void pickFileForDccSend();
         void openMembersDrawer();
         void openIgnoreList();
@@ -38,6 +39,9 @@ public class ChatOptionsActionHandler {
             return true;
         } else if (itemId == R.id.action_part_channel) {
             host.partCurrentChannel();
+            return true;
+        } else if (itemId == R.id.action_close_all_pms) {
+            host.closeAllPrivateMessages();
             return true;
         } else if (itemId == R.id.action_dcc_send) {
             host.pickFileForDccSend();

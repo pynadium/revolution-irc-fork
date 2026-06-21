@@ -291,6 +291,12 @@ public class MainActivity extends ThemedActivity
             }
 
             @Override
+            public void closeAllPrivateMessages() {
+                Log.i(TAG, "setupChatActions(): action -> close all private messages");
+                MainActivity.this.closeAllPrivateMessages();
+            }
+
+            @Override
             public void pickFileForDccSend() {
                 Log.i(TAG, "setupChatActions(): action -> pick File for DCC send");
                 dccCoordinator.requestFileSend();
@@ -741,6 +747,16 @@ public class MainActivity extends ThemedActivity
         String channel = ((ChatFragment) getCurrentFragment()).getCurrentChannel();
         if (channel != null)
             api.leaveChannel(channel, AppSettings.getDefaultPartMessage(), null, null);
+    }
+
+    private void closeAllPrivateMessages() {
+        ChatApi api = ((ChatFragment) getCurrentFragment()).getConnectionInfo().getApiInstance();
+        api.getJoinedChannelList((List<String> channels) -> {
+            for (String channel : channels) {
+                if (!channel.startsWith("#"))
+                    api.leaveChannel(channel, AppSettings.getDefaultPartMessage(), null, null);
+            }
+        }, null);
     }
 
     private void showUserSearchDialog() {
