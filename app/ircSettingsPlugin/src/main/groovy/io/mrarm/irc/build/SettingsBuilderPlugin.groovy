@@ -12,7 +12,7 @@ public class SettingsBuilderPlugin implements Plugin<Project> {
 
         def genDir = new File(project.getBuildDir(), "generated/source/settings")
         def settingsFile = project.file("settings.yml")
-        def genTask = project.register("generateSettings") {
+        def genTask = project.task("generateSettings") {
             inputs.file(settingsFile)
             outputs.dir(genDir)
             doLast {
