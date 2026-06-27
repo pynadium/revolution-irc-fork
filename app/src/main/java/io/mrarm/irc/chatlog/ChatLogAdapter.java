@@ -15,8 +15,8 @@ import java.util.List;
 import java.util.Locale;
 
 import io.mrarm.irc.R;
-import io.mrarm.irc.chatlib.dto.RoomMessageId;
 import io.mrarm.irc.model.ConversationMessage;
+import io.mrarm.irc.protocol.dto.RoomMessageId;
 import io.mrarm.irc.util.DayIntHelper;
 
 public class ChatLogAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {

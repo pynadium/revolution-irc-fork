@@ -27,13 +27,13 @@ import io.mrarm.irc.MainActivity;
 import io.mrarm.irc.NotificationManager;
 import io.mrarm.irc.R;
 import io.mrarm.irc.app.navigation.NavigationHost;
-import io.mrarm.irc.chatlib.dto.NickWithPrefix;
 import io.mrarm.irc.config.ChatSettings;
 import io.mrarm.irc.config.NickAutocompleteSettings;
 import io.mrarm.irc.config.SettingsHelper;
 import io.mrarm.irc.config.UiSettingChangeCallback;
 import io.mrarm.irc.connection.ServerConnectionManager;
 import io.mrarm.irc.connection.ServerConnectionSession;
+import io.mrarm.irc.protocol.dto.NickWithPrefix;
 
 @Keep
 public class ChatFragment extends Fragment implements

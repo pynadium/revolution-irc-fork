@@ -5,7 +5,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import io.mrarm.irc.chatlib.irc.ServerConnectionData;
+import io.mrarm.irc.protocol.irc.ServerConnectionData;
 
 public class CommandAliasSyntaxParser {
 

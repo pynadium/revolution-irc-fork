@@ -17,11 +17,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import io.mrarm.irc.chatlib.ChatApi;
 import io.mrarm.irc.config.ServerConfigData;
 import io.mrarm.irc.config.ServerConfigManager;
 import io.mrarm.irc.connection.ServerConnectionManager;
 import io.mrarm.irc.connection.ServerConnectionSession;
+import io.mrarm.irc.protocol.ChatApi;
 import io.mrarm.irc.util.AdvancedDividerItemDecoration;
 
 public class IRCLinkActivity extends ThemedActivity {

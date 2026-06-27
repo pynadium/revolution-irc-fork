@@ -19,7 +19,6 @@ import io.mrarm.irc.NotificationManager;
 import io.mrarm.irc.R;
 import io.mrarm.irc.SettingsActivity;
 import io.mrarm.irc.app.navigation.NavigationHost;
-import io.mrarm.irc.chatlib.irc.ServerConnectionApi;
 import io.mrarm.irc.chatlog.ChatLogViewerActivity;
 import io.mrarm.irc.config.AppSettings;
 import io.mrarm.irc.config.SettingsHelper;
@@ -27,6 +26,7 @@ import io.mrarm.irc.config.UiSettingChangeCallback;
 import io.mrarm.irc.connection.ServerConnectionManager;
 import io.mrarm.irc.connection.ServerConnectionSession;
 import io.mrarm.irc.dialog.ChannelSearchDialog;
+import io.mrarm.irc.protocol.irc.ServerConnectionApi;
 import io.mrarm.irc.view.LockableDrawerLayout;
 
 public class DrawerHelper implements ServerConnectionManager.ConnectionsListener,

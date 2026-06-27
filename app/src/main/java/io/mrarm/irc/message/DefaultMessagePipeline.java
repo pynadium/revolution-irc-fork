@@ -6,10 +6,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 
-import io.mrarm.irc.chatlib.dto.MessageId;
-import io.mrarm.irc.chatlib.dto.MessageInfo;
-import io.mrarm.irc.chatlib.dto.RoomMessageId;
 import io.mrarm.irc.config.ChatSettings;
+import io.mrarm.irc.protocol.dto.MessageId;
+import io.mrarm.irc.protocol.dto.MessageInfo;
+import io.mrarm.irc.protocol.dto.RoomMessageId;
 import io.mrarm.irc.storage.db.MessageEntity;
 import io.mrarm.irc.storage.db.MessageKind;
 

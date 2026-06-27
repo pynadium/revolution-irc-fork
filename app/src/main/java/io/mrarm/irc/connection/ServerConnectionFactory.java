@@ -12,11 +12,11 @@ import javax.net.ssl.TrustManager;
 
 import io.mrarm.irc.UserKeyManager;
 import io.mrarm.irc.UserOverrideTrustManager;
-import io.mrarm.irc.chatlib.irc.IRCConnectionRequest;
-import io.mrarm.irc.chatlib.irc.cap.SASLOptions;
 import io.mrarm.irc.config.AppSettings;
 import io.mrarm.irc.config.ServerConfigData;
 import io.mrarm.irc.infrastructure.threading.DelayScheduler;
+import io.mrarm.irc.protocol.irc.IRCConnectionRequest;
+import io.mrarm.irc.protocol.irc.cap.SASLOptions;
 
 public class ServerConnectionFactory {
     private final Context appContext;

@@ -8,12 +8,12 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.List;
 
-import io.mrarm.irc.chatlib.dto.MessageInfo;
-import io.mrarm.irc.chatlib.dto.MessageSenderInfo;
-import io.mrarm.irc.chatlib.dto.RoomMessageId;
 import io.mrarm.irc.message.DefaultMessageBus;
 import io.mrarm.irc.model.ConversationMessage;
 import io.mrarm.irc.model.ConversationMessageType;
+import io.mrarm.irc.protocol.dto.MessageInfo;
+import io.mrarm.irc.protocol.dto.MessageSenderInfo;
+import io.mrarm.irc.protocol.dto.RoomMessageId;
 
 public class ConversationRepositoryLiveTest {
 

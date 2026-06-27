@@ -7,10 +7,10 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
 
-import io.mrarm.irc.chatlib.dto.MessageList;
-import io.mrarm.irc.chatlib.message.MessageListener;
 import io.mrarm.irc.message.MessageBus;
 import io.mrarm.irc.model.ConversationMessage;
+import io.mrarm.irc.protocol.dto.MessageList;
+import io.mrarm.irc.protocol.message.MessageListener;
 import io.mrarm.irc.storage.MessageStorageRepository;
 
 public class ConversationRepositoryImpl implements ConversationRepository {

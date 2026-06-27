@@ -32,8 +32,8 @@ import com.google.android.material.textfield.TextInputLayout;
 import java.util.Calendar;
 import java.util.Date;
 
-import io.mrarm.irc.chatlib.dto.MessageInfo;
-import io.mrarm.irc.chatlib.dto.MessageSenderInfo;
+import io.mrarm.irc.protocol.dto.MessageInfo;
+import io.mrarm.irc.protocol.dto.MessageSenderInfo;
 import io.mrarm.irc.util.MessageBuilder;
 import io.mrarm.irc.util.SimpleTextWatcher;
 import io.mrarm.irc.util.StyledAttributesHelper;

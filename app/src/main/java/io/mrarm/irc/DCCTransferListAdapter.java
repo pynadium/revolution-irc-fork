@@ -23,9 +23,9 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 
-import io.mrarm.irc.chatlib.irc.dcc.DCCServer;
-import io.mrarm.irc.chatlib.irc.dcc.DCCServerManager;
 import io.mrarm.irc.dialog.MenuBottomSheetDialog;
+import io.mrarm.irc.protocol.irc.dcc.DCCServer;
+import io.mrarm.irc.protocol.irc.dcc.DCCServerManager;
 import io.mrarm.irc.util.AdvancedDividerItemDecoration;
 import io.mrarm.irc.util.FormatUtils;
 

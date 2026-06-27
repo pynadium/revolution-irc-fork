@@ -4,7 +4,7 @@ import java.util.Date;
 import java.util.Map;
 import java.util.UUID;
 
-import io.mrarm.irc.chatlib.dto.MessageId;
+import io.mrarm.irc.protocol.dto.MessageId;
 
 public class ConversationMessage {
     private final MessageId id;

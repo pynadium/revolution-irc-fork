@@ -25,9 +25,9 @@ import java.util.TreeSet;
 
 import io.mrarm.irc.NotificationManager;
 import io.mrarm.irc.R;
-import io.mrarm.irc.chatlib.dto.MessageId;
-import io.mrarm.irc.chatlib.dto.MessageInfo;
-import io.mrarm.irc.chatlib.dto.RoomMessageId;
+import io.mrarm.irc.protocol.dto.MessageId;
+import io.mrarm.irc.protocol.dto.MessageInfo;
+import io.mrarm.irc.protocol.dto.RoomMessageId;
 import io.mrarm.irc.util.AlignToPointSpan;
 import io.mrarm.irc.util.DayIntHelper;
 import io.mrarm.irc.util.LongPressSelectTouchListener;

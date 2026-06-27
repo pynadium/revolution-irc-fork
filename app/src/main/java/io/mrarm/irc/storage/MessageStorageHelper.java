@@ -11,13 +11,13 @@ import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
-import io.mrarm.irc.chatlib.dto.ChannelModeMessageInfo;
-import io.mrarm.irc.chatlib.dto.KickMessageInfo;
-import io.mrarm.irc.chatlib.dto.MessageInfo;
-import io.mrarm.irc.chatlib.dto.MessageSenderInfo;
-import io.mrarm.irc.chatlib.dto.NickChangeMessageInfo;
-import io.mrarm.irc.chatlib.dto.NickPrefixList;
-import io.mrarm.irc.chatlib.dto.TopicWhoTimeMessageInfo;
+import io.mrarm.irc.protocol.dto.ChannelModeMessageInfo;
+import io.mrarm.irc.protocol.dto.KickMessageInfo;
+import io.mrarm.irc.protocol.dto.MessageInfo;
+import io.mrarm.irc.protocol.dto.MessageSenderInfo;
+import io.mrarm.irc.protocol.dto.NickChangeMessageInfo;
+import io.mrarm.irc.protocol.dto.NickPrefixList;
+import io.mrarm.irc.protocol.dto.TopicWhoTimeMessageInfo;
 
 public class MessageStorageHelper {
 

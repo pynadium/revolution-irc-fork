@@ -4,14 +4,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-import io.mrarm.irc.chatlib.dto.KickMessageInfo;
-import io.mrarm.irc.chatlib.dto.MessageId;
-import io.mrarm.irc.chatlib.dto.MessageInfo;
-import io.mrarm.irc.chatlib.dto.MessageSenderInfo;
-import io.mrarm.irc.chatlib.dto.NickChangeMessageInfo;
-import io.mrarm.irc.chatlib.dto.TopicWhoTimeMessageInfo;
 import io.mrarm.irc.model.ConversationMessage;
 import io.mrarm.irc.model.ConversationMessageType;
+import io.mrarm.irc.protocol.dto.KickMessageInfo;
+import io.mrarm.irc.protocol.dto.MessageId;
+import io.mrarm.irc.protocol.dto.MessageInfo;
+import io.mrarm.irc.protocol.dto.MessageSenderInfo;
+import io.mrarm.irc.protocol.dto.NickChangeMessageInfo;
+import io.mrarm.irc.protocol.dto.TopicWhoTimeMessageInfo;
 
 public class ConversationMessageMapper {
     static ConversationMessage map(MessageInfo info, MessageId id) {

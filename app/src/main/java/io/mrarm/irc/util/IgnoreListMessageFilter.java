@@ -2,10 +2,10 @@ package io.mrarm.irc.util;
 
 import android.util.Log;
 
-import io.mrarm.irc.chatlib.dto.MessageInfo;
-import io.mrarm.irc.chatlib.irc.MessageFilter;
-import io.mrarm.irc.chatlib.irc.ServerConnectionData;
 import io.mrarm.irc.config.ServerConfigData;
+import io.mrarm.irc.protocol.dto.MessageInfo;
+import io.mrarm.irc.protocol.irc.MessageFilter;
+import io.mrarm.irc.protocol.irc.ServerConnectionData;
 
 public class IgnoreListMessageFilter implements MessageFilter {
 

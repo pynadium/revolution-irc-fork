@@ -18,14 +18,14 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
-import io.mrarm.irc.chatlib.ChatApi;
-import io.mrarm.irc.chatlib.dto.MessageId;
-import io.mrarm.irc.chatlib.dto.MessageInfo;
-import io.mrarm.irc.chatlib.irc.ServerConnectionApi;
 import io.mrarm.irc.config.NotificationRule;
 import io.mrarm.irc.config.NotificationRuleManager;
 import io.mrarm.irc.connection.ServerConnectionManager;
 import io.mrarm.irc.connection.ServerConnectionSession;
+import io.mrarm.irc.protocol.ChatApi;
+import io.mrarm.irc.protocol.dto.MessageId;
+import io.mrarm.irc.protocol.dto.MessageInfo;
+import io.mrarm.irc.protocol.irc.ServerConnectionApi;
 import io.mrarm.irc.util.WarningHelper;
 
 public class NotificationManager {

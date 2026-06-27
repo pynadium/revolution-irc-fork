@@ -13,8 +13,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
-import io.mrarm.irc.chatlib.irc.dcc.DCCServer;
-import io.mrarm.irc.chatlib.irc.dcc.DCCServerManager;
+import io.mrarm.irc.protocol.irc.dcc.DCCServer;
+import io.mrarm.irc.protocol.irc.dcc.DCCServerManager;
 
 public class DCCHistory {
 

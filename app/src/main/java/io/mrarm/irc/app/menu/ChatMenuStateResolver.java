@@ -2,8 +2,8 @@ package io.mrarm.irc.app.menu;
 
 import io.mrarm.irc.R;
 import io.mrarm.irc.chat.ChatFragment;
-import io.mrarm.irc.chatlib.irc.ServerConnectionApi;
 import io.mrarm.irc.config.ChatSettings;
+import io.mrarm.irc.protocol.irc.ServerConnectionApi;
 
 public class ChatMenuStateResolver {
 

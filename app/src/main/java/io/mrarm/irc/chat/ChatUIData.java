@@ -4,8 +4,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import io.mrarm.irc.chatlib.ChannelListListener;
-import io.mrarm.irc.chatlib.ChatApi;
+import io.mrarm.irc.protocol.ChannelListListener;
+import io.mrarm.irc.protocol.ChatApi;
 
 public class ChatUIData {
 

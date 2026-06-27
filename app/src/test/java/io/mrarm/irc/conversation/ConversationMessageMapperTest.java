@@ -9,14 +9,14 @@ import org.junit.Test;
 
 import java.util.Date;
 
-import io.mrarm.irc.chatlib.dto.KickMessageInfo;
-import io.mrarm.irc.chatlib.dto.MessageId;
-import io.mrarm.irc.chatlib.dto.MessageInfo;
-import io.mrarm.irc.chatlib.dto.MessageSenderInfo;
-import io.mrarm.irc.chatlib.dto.NickChangeMessageInfo;
-import io.mrarm.irc.chatlib.dto.RoomMessageId;
 import io.mrarm.irc.model.ConversationMessage;
 import io.mrarm.irc.model.ConversationMessageType;
+import io.mrarm.irc.protocol.dto.KickMessageInfo;
+import io.mrarm.irc.protocol.dto.MessageId;
+import io.mrarm.irc.protocol.dto.MessageInfo;
+import io.mrarm.irc.protocol.dto.MessageSenderInfo;
+import io.mrarm.irc.protocol.dto.NickChangeMessageInfo;
+import io.mrarm.irc.protocol.dto.RoomMessageId;
 
 public class ConversationMessageMapperTest {
     private static MessageSenderInfo sender(String nick) {
