@@ -1,5 +1,6 @@
 package io.mrarm.irc.chatlog;
 
+import android.text.format.DateUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -10,67 +11,125 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
 import io.mrarm.irc.R;
-import io.mrarm.irc.storage.db.MessageEntity;
+import io.mrarm.irc.chatlib.dto.RoomMessageId;
+import io.mrarm.irc.model.ConversationMessage;
+import io.mrarm.irc.util.DayIntHelper;
 
-public class ChatLogAdapter extends RecyclerView.Adapter<ChatLogAdapter.Holder> {
+public class ChatLogAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
-    private final SimpleDateFormat mFormat = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
-    private final List<MessageEntity> mMessages = new ArrayList<>();
+    private static final int TYPE_MESSAGE = 0;
+    private static final int TYPE_DAY_MARKER = 1;
+
+    private final SimpleDateFormat mTimeFormat = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
+
+    private final List<ConversationMessage> mRawMessages = new ArrayList<>();
+    private final List<Object> mItems = new ArrayList<>();
 
     public boolean hasMessages() {
-        return !mMessages.isEmpty();
+        return !mRawMessages.isEmpty();
     }
 
     public long getOldestId() {
-        return mMessages.get(0).id;
+        return ((RoomMessageId) mRawMessages.get(0).getId()).getId();
     }
 
-    public void setMessages(List<MessageEntity> messages) {
-        mMessages.clear();
-        mMessages.addAll(messages);
+    public void setMessages(List<ConversationMessage> messages) {
+        mRawMessages.clear();
+        mRawMessages.addAll(messages);
+        rebuildItems();
         notifyDataSetChanged();
     }
 
-    public void addToTop(List<MessageEntity> olderMessages) {
+    public void addToTop(List<ConversationMessage> olderMessages) {
         if (olderMessages.isEmpty())
             return;
-        mMessages.addAll(0, olderMessages);
-        notifyItemRangeInserted(0, olderMessages.size());
+        mRawMessages.addAll(0, olderMessages);
+        rebuildItems();
+        notifyDataSetChanged();
     }
 
-    @NonNull
-    @Override
-    public Holder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View v = LayoutInflater.from(parent.getContext())
-                .inflate(R.layout.chat_message, parent, false);
-        return new Holder(v);
-    }
-
-    @Override
-    public void onBindViewHolder(@NonNull Holder holder, int position) {
-        MessageEntity e = mMessages.get(position);
-        String line = "[" + mFormat.format(new Date(e.timestamp)) + "] "
-                + (e.sender != null ? e.sender + ": " : "")
-                + (e.text != null ? e.text : "");
-        holder.text.setText(line);
+    private void rebuildItems() {
+        mItems.clear();
+        int lastDay = -1;
+        for (ConversationMessage msg : mRawMessages) {
+            if (msg.getTimestamp() == null)
+                continue;
+            int day = DayIntHelper.getDayInt(msg.getTimestamp());
+            if (day != lastDay) {
+                mItems.add(new DaySeparator(day));
+                lastDay = day;
+            }
+            mItems.add(msg);
+        }
     }
 
     @Override
     public int getItemCount() {
-        return mMessages.size();
+        return mItems.size();
     }
 
-    public static class Holder extends RecyclerView.ViewHolder {
+    @Override
+    public int getItemViewType(int position) {
+        return mItems.get(position) instanceof DaySeparator ? TYPE_DAY_MARKER : TYPE_MESSAGE;
+    }
+
+    @NonNull
+    @Override
+    public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        LayoutInflater inflater = LayoutInflater.from(parent.getContext());
+        if (viewType == TYPE_DAY_MARKER)
+            return new DayMarkerHolder(inflater.inflate(R.layout.chat_day_marker, parent, false));
+        return new MessageHolder(inflater.inflate(R.layout.chat_message, parent, false));
+    }
+
+    @Override
+    public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+        Object item = mItems.get(position);
+        if (holder instanceof DayMarkerHolder)
+            ((DayMarkerHolder) holder).bind((DaySeparator) item);
+        else
+            ((MessageHolder) holder).bind((ConversationMessage) item);
+    }
+
+    class MessageHolder extends RecyclerView.ViewHolder {
         final TextView text;
 
-        public Holder(@NonNull View itemView) {
+        MessageHolder(View itemView) {
             super(itemView);
             text = itemView.findViewById(R.id.chat_message);
         }
+
+        void bind(ConversationMessage msg) {
+            String sender = msg.getSenderDisplayName();
+            String line = "[" + mTimeFormat.format(msg.getTimestamp()) + "] "
+                    + (sender != null ? sender + ": " : "")
+                    + (msg.getText() != null ? msg.getText() : "");
+            text.setText(line);
+        }
+    }
+
+    static class DayMarkerHolder extends RecyclerView.ViewHolder {
+        final TextView text;
+
+        DayMarkerHolder(View itemView) {
+            super(itemView);
+            text = itemView.findViewById(R.id.text);
+        }
+
+        void bind(DaySeparator sep) {
+            text.setText(DateUtils.formatDateTime(
+                    text.getContext(),
+                    DayIntHelper.getDateIntMs(sep.day),
+                    DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_SHOW_YEAR));
+        }
+    }
+
+    static class DaySeparator {
+        final int day;
+        DaySeparator(int day) { this.day = day; }
     }
 }

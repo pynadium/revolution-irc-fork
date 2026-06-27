@@ -32,9 +32,10 @@ import io.mrarm.irc.R;
 import io.mrarm.irc.ThemedActivity;
 import io.mrarm.irc.config.ServerConfigData;
 import io.mrarm.irc.config.ServerConfigManager;
+import io.mrarm.irc.conversation.ConversationRepository;
+import io.mrarm.irc.conversation.ConversationRepositoryImpl;
 import io.mrarm.irc.infrastructure.threading.AppAsyncExecutor;
 import io.mrarm.irc.storage.MessageStorageRepository;
-import io.mrarm.irc.storage.db.MessageEntity;
 import io.mrarm.irc.view.AutoResizeSpinner;
 
 public class ChatLogViewerActivity extends ThemedActivity {
@@ -52,6 +53,7 @@ public class ChatLogViewerActivity extends ThemedActivity {
     private TextView mEmptyState;
     private ChatLogAdapter mAdapter;
     private MessageStorageRepository mRepo;
+    private ConversationRepository mConvRepo;
 
     private List<ServerConfigData> mServers = new ArrayList<>();
     private List<String> mChannelValues = new ArrayList<>();
@@ -73,6 +75,7 @@ public class ChatLogViewerActivity extends ThemedActivity {
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
 
         mRepo = MessageStorageRepository.getInstance(this);
+        mConvRepo = new ConversationRepositoryImpl(mRepo);
 
         mServerSpinner = findViewById(R.id.filter_server);
         mChannelSpinner = findViewById(R.id.filter_channel);
@@ -119,7 +122,7 @@ public class ChatLogViewerActivity extends ThemedActivity {
     private void setupServerSpinner() {
         mServers = new ArrayList<>(ServerConfigManager.getInstance(this).getServers());
 
-        mRepo.getDistinctServerIdsAsync(loggedIds -> {
+        mConvRepo.getDistinctServerIdsAsync(loggedIds -> {
             if (loggedIds == null)
                 loggedIds = Collections.emptyList();
 
@@ -172,7 +175,7 @@ public class ChatLogViewerActivity extends ThemedActivity {
         mSelectedChannel = null;
         mSelectedSender = null;
 
-        mRepo.getDistinctChannelsAsync(mSelectedServer, channels -> {
+        mConvRepo.getDistinctChannelAsync(mSelectedServer, channels -> {
             bindChannelSpinner(channels != null ? channels : new ArrayList<>());
         });
     }
@@ -209,7 +212,7 @@ public class ChatLogViewerActivity extends ThemedActivity {
     private void onChannelSelected() {
         mSelectedSender = null;
 
-        mRepo.getDistinctSendersAsync(mSelectedServer, mSelectedChannel, senders -> {
+        mConvRepo.getDistinctSendersAsync(mSelectedServer, mSelectedChannel, senders -> {
             bindSenderSpinner(senders != null ? senders : new ArrayList<>());
         });
     }
@@ -247,13 +250,12 @@ public class ChatLogViewerActivity extends ThemedActivity {
 
     private void reload() {
         mIsLoadingMore = true;
-        mRepo.loadFilteredBeforeAsync(mSelectedServer, mSelectedChannel, mSelectedSender,
+        mConvRepo.loadFilteredBeforeAsync(mSelectedServer, mSelectedChannel, mSelectedSender,
                 Long.MAX_VALUE, PAGE_SIZE, Collections.emptyList(), result -> {
                     mIsLoadingMore = false;
-                    List<MessageEntity> ascending = reversed(result);
-                    mAdapter.setMessages(ascending);
-                    showEmptyState(ascending.isEmpty());
-                    if (!ascending.isEmpty())
+                    mAdapter.setMessages(result);
+                    showEmptyState(result.isEmpty());
+                    if (!result.isEmpty())
                         mRecyclerView.scrollToPosition(mAdapter.getItemCount() - 1);
                 });
     }
@@ -264,19 +266,11 @@ public class ChatLogViewerActivity extends ThemedActivity {
         mIsLoadingMore = true;
         long beforeId = mAdapter.getOldestId();
 
-        mRepo.loadFilteredBeforeAsync(mSelectedServer, mSelectedChannel, mSelectedSender,
+        mConvRepo.loadFilteredBeforeAsync(mSelectedServer, mSelectedChannel, mSelectedSender,
                 beforeId, PAGE_SIZE, Collections.emptyList(), result -> {
                     mIsLoadingMore = false;
-                    mAdapter.addToTop(reversed(result));
+                    mAdapter.addToTop(result);
                 });
-    }
-
-    private List<MessageEntity> reversed(List<MessageEntity> descending) {
-        if (descending == null)
-            return new ArrayList<>();
-        List<MessageEntity> ascending = new ArrayList<>(descending);
-        Collections.reverse(ascending);
-        return ascending;
     }
 
     private void showEmptyState(boolean empty) {

@@ -17,7 +17,6 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
@@ -30,6 +29,7 @@ import io.mrarm.irc.chatlib.dto.MessageId;
 import io.mrarm.irc.chatlib.dto.MessageInfo;
 import io.mrarm.irc.chatlib.dto.RoomMessageId;
 import io.mrarm.irc.util.AlignToPointSpan;
+import io.mrarm.irc.util.DayIntHelper;
 import io.mrarm.irc.util.LongPressSelectTouchListener;
 import io.mrarm.irc.util.MessageBuilder;
 import io.mrarm.irc.util.StyledAttributesHelper;
@@ -526,20 +526,12 @@ public class ChatMessagesAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
     }
 
 
-    private static final Calendar sDayIntCalendar = Calendar.getInstance();
-    private static final int sDaysInYear = sDayIntCalendar.getMaximum(Calendar.DAY_OF_YEAR);
-
     private static int getDayInt(Date date) {
-        sDayIntCalendar.setTime(date);
-        return sDayIntCalendar.get(Calendar.YEAR) * (sDaysInYear + 1) +
-                sDayIntCalendar.get(Calendar.DAY_OF_YEAR);
+        return DayIntHelper.getDayInt(date);
     }
 
     private static long getDateIntMs(int date) {
-        sDayIntCalendar.setTimeInMillis(0);
-        sDayIntCalendar.set(Calendar.YEAR, date / (sDaysInYear + 1));
-        sDayIntCalendar.set(Calendar.DAY_OF_YEAR, date % (sDaysInYear + 1));
-        return sDayIntCalendar.getTimeInMillis();
+        return DayIntHelper.getDateIntMs(date);
     }
 
 }
