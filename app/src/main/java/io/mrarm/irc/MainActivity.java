@@ -27,6 +27,7 @@ import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.view.ActionMode;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
@@ -52,6 +53,8 @@ import io.mrarm.irc.app.navigation.MainNavigator;
 import io.mrarm.irc.app.navigation.NavigationHost;
 import io.mrarm.irc.chat.ChannelInfoAdapter;
 import io.mrarm.irc.chat.ChatFragment;
+import io.mrarm.irc.chat.host.ActionModeHost;
+import io.mrarm.irc.chat.host.ChatActivityHost;
 import io.mrarm.irc.config.AppSettings;
 import io.mrarm.irc.connection.ServerConnectionManager;
 import io.mrarm.irc.connection.ServerConnectionSession;
@@ -82,12 +85,9 @@ import io.mrarm.irc.view.LockableDrawerLayout;
 // - keep MainActivity focused on lifecycle + high-level orchestration
 
 @Keep
-public class MainActivity extends ThemedActivity
-        implements IRCApplication.ExitCallback,
-        MainNavigator.Host,
-        NavigationHost,
-        DrawerToolbarHost,
-        DialogHost {
+public class MainActivity extends ThemedActivity implements IRCApplication.ExitCallback,
+        MainNavigator.Host, NavigationHost, DrawerToolbarHost, DialogHost, ActionModeHost,
+        ChatActivityHost {
 
     public static final String ARG_SERVER_UUID = "server_uuid";
     public static final String ARG_CHANNEL_NAME = "channel";
@@ -119,17 +119,18 @@ public class MainActivity extends ThemedActivity
     private ServerConnectionSession mNickDialogSession = null;
     private final ServerConnectionSession.InfoChangeListener mNickExhaustedListener =
             connection -> runOnUiThread(() -> {
-                if (connection.isNickExhausted()) {
-                    if (mNickDialog == null || mNickDialogSession != connection) {
-                        if (mNickDialog != null) mNickDialog.dismiss();
-                        showNickUnavailableDialog(connection);
-                    }
-                } else if (mNickDialogSession == connection && mNickDialog != null) {
+        if (connection.isNickExhausted()) {
+            if (mNickDialog == null || mNickDialogSession != connection) {
+                if (mNickDialog != null)
                     mNickDialog.dismiss();
-                    mNickDialog = null;
-                    mNickDialogSession = null;
-                }
-            });
+                showNickUnavailableDialog(connection);
+            }
+        } else if (mNickDialogSession == connection && mNickDialog != null) {
+            mNickDialog.dismiss();
+            mNickDialog = null;
+            mNickDialogSession = null;
+        }
+    });
 
     private DCCCoordinator dccCoordinator;
     private ActivityResultLauncher<String> dccFilePicker;
@@ -144,7 +145,8 @@ public class MainActivity extends ThemedActivity
         addActionBarDrawerToggle(toolbar);
     }
 
-    public static Intent getLaunchIntent(Context context, ServerConnectionSession server, String channel, String messageId) {
+    public static Intent getLaunchIntent(Context context, ServerConnectionSession server,
+                                         String channel, String messageId) {
         Intent intent = new Intent(context, MainActivity.class);
         if (server != null)
             intent.putExtra(ARG_SERVER_UUID, server.getUUID().toString());
@@ -155,7 +157,8 @@ public class MainActivity extends ThemedActivity
         return intent;
     }
 
-    public static Intent getLaunchIntent(Context context, ServerConnectionSession server, String channel) {
+    public static Intent getLaunchIntent(Context context, ServerConnectionSession server,
+                                         String channel) {
         return getLaunchIntent(context, server, channel, null);
     }
 
@@ -190,20 +193,27 @@ public class MainActivity extends ThemedActivity
 
     private void setupDCCHandlers() {
         Log.i(TAG, "setupGlobalLinkHandler(): Setting up DCC handlers");
-        dccFilePicker = registerForActivityResult(
-                new ActivityResultContracts.GetContent(),
-                uri -> {
-                    if (uri != null && dccCoordinator != null) dccCoordinator.onFilePicked(uri);
-                }
-        );
+        dccFilePicker = registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
+            if (uri != null && dccCoordinator != null)
+                dccCoordinator.onFilePicked(uri);
+        });
 
         dccCoordinator = new DCCCoordinator(new DCCCoordinator.Host() {
-            @Override public Context getContext() { return MainActivity.this; }
-            @Override public ChatFragment getCurrentChat() {
+            @Override
+            public Context getContext() {
+                return MainActivity.this;
+            }
+
+            @Override
+            public ChatFragment getCurrentChat() {
                 Fragment f = getCurrentFragment();
                 return (f instanceof ChatFragment) ? (ChatFragment) f : null;
             }
-            @Override public ActivityResultLauncher<String> getFilePicker() { return dccFilePicker; }
+
+            @Override
+            public ActivityResultLauncher<String> getFilePicker() {
+                return dccFilePicker;
+            }
         });
     }
 
@@ -221,21 +231,10 @@ public class MainActivity extends ThemedActivity
     private void handleInitialIntent() {
         Intent intent = getIntent();
 
-        ChatFragment fragment = mNavigator.handleIntent(
-                intent,
-                uuid -> ServerConnectionManager
-                        .getInstance(this)
-                        .getConnection(UUID.fromString(uuid)),
-                getCurrentFragment(),
-                ARG_SERVER_UUID,
-                ARG_CHANNEL_NAME,
-                ARG_MESSAGE_ID,
-                ARG_MANAGE_SERVERS
-        );
+        ChatFragment fragment = mNavigator.handleIntent(intent,
+                uuid -> ServerConnectionManager.getInstance(this).getConnection(UUID.fromString(uuid)), getCurrentFragment(), ARG_SERVER_UUID, ARG_CHANNEL_NAME, ARG_MESSAGE_ID, ARG_MANAGE_SERVERS);
 
-        if (fragment != null
-                && Intent.ACTION_SEND.equals(intent.getAction())
-                && "text/plain".equals(intent.getType())) {
+        if (fragment != null && Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())) {
             setFragmentShareText(fragment, intent.getStringExtra(Intent.EXTRA_TEXT));
         }
     }
@@ -243,8 +242,7 @@ public class MainActivity extends ThemedActivity
     private void setupChannelInfoAdapter() {
         mChannelInfoAdapter = new ChannelInfoAdapter((connection, nick) -> {
 
-            UserBottomSheetDialog dialog =
-                    new UserBottomSheetDialog(MainActivity.this);
+            UserBottomSheetDialog dialog = new UserBottomSheetDialog(MainActivity.this);
 
             dialog.setConnection(connection);
 
@@ -366,32 +364,27 @@ public class MainActivity extends ThemedActivity
                 return;
             }
 
-            MenuBottomSheetDialog dialog =
-                    new MenuBottomSheetDialog(view.getContext());
+            MenuBottomSheetDialog dialog = new MenuBottomSheetDialog(view.getContext());
 
             dialog.addHeader(channel);
 
-            dialog.addItem(R.string.action_open,
-                    R.drawable.ic_open_in_new,
-                    item -> {
+            dialog.addItem(R.string.action_open, R.drawable.ic_open_in_new, item -> {
 
-                        ServerConnectionSession connection =
-                                fragment.getConnectionInfo();
+                ServerConnectionSession connection = fragment.getConnectionInfo();
 
-                        List<String> channels = new ArrayList<>();
-                        channels.add(channel);
+                List<String> channels = new ArrayList<>();
+                channels.add(channel);
 
-                        if (connection.hasChannel(channel)) {
-                            mNavigator.openServer(connection, channel);
-                            return true;
-                        }
+                if (connection.hasChannel(channel)) {
+                    mNavigator.openServer(connection, channel);
+                    return true;
+                }
 
-                        fragment.setAutoOpenChannel(channel);
-                        connection.getApiInstance()
-                                .joinChannels(channels, null, null);
+                fragment.setAutoOpenChannel(channel);
+                connection.getApiInstance().joinChannels(channels, null, null);
 
-                        return true;
-                    });
+                return true;
+            });
 
             dialog.show();
             setFragmentDialog(dialog);
@@ -400,12 +393,8 @@ public class MainActivity extends ThemedActivity
 
     private void setupNavigator() {
         Log.i(TAG, "setupNavigator(): Setting up global navigator");
-        mNavigator = new MainNavigator(
-                getSupportFragmentManager(),
-                R.id.content_frame,
-                mDrawerHelper,
-                this
-        );
+        mNavigator = new MainNavigator(getSupportFragmentManager(), R.id.content_frame,
+                mDrawerHelper, this);
     }
 
     private void setupDrawer() {
@@ -461,8 +450,9 @@ public class MainActivity extends ThemedActivity
             group.removeViewAt(i);
             Toolbar replacement = new Toolbar(group.getContext());
             replacement.setPopupTheme(mToolbar.getPopupTheme());
-            AppBarLayout.LayoutParams toolbarParams = new AppBarLayout.LayoutParams(
-                    AppBarLayout.LayoutParams.MATCH_PARENT, params.height);
+            AppBarLayout.LayoutParams toolbarParams =
+                    new AppBarLayout.LayoutParams(AppBarLayout.LayoutParams.MATCH_PARENT,
+                            params.height);
             replacement.setLayoutParams(toolbarParams);
             for (int j = 0; j < mToolbar.getChildCount(); j++) {
                 View v = mToolbar.getChildAt(j);
@@ -492,7 +482,8 @@ public class MainActivity extends ThemedActivity
         super.onRestoreInstanceState(savedInstanceState);
         String serverUUID = savedInstanceState.getString(ARG_SERVER_UUID);
         if (serverUUID != null) {
-            ServerConnectionSession server = ServerConnectionManager.getInstance(this).getConnection(UUID.fromString(serverUUID));
+            ServerConnectionSession server =
+                    ServerConnectionManager.getInstance(this).getConnection(UUID.fromString(serverUUID));
             mNavigator.openServer(server, savedInstanceState.getString(ARG_CHANNEL_NAME));
         }
     }
@@ -509,7 +500,10 @@ public class MainActivity extends ThemedActivity
         mDrawerHelper.unregisterListeners();
         ServerConnectionManager.getInstance(this).removeGlobalConnectionInfoListener(mNickExhaustedListener);
         dismissFragmentDialog();
-        if (mNickDialog != null) { mNickDialog.dismiss(); mNickDialog = null; }
+        if (mNickDialog != null) {
+            mNickDialog.dismiss();
+            mNickDialog = null;
+        }
         super.onDestroy();
     }
 
@@ -521,7 +515,8 @@ public class MainActivity extends ThemedActivity
         mNavigator.ensureValidConnection(ServerConnectionManager.getInstance(this));
         // Show nick dialog for any session that failed while the activity was in background
         if (mNickDialog == null) {
-            for (ServerConnectionSession s : ServerConnectionManager.getInstance(this).getConnections()) {
+            for (ServerConnectionSession s :
+                    ServerConnectionManager.getInstance(this).getConnections()) {
                 if (s.isNickExhausted()) {
                     showNickUnavailableDialog(s);
                     break;
@@ -541,21 +536,11 @@ public class MainActivity extends ThemedActivity
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         ChatFragment fragment = mNavigator.handleIntent(intent,
-                uuid -> ServerConnectionManager
-                        .getInstance(this)
-                        .getConnection(UUID.fromString(uuid)),
-                getCurrentFragment(),
-                ARG_SERVER_UUID,
-                ARG_CHANNEL_NAME,
-                ARG_MESSAGE_ID,
-                ARG_MANAGE_SERVERS);
+                uuid -> ServerConnectionManager.getInstance(this).getConnection(UUID.fromString(uuid)), getCurrentFragment(), ARG_SERVER_UUID, ARG_CHANNEL_NAME, ARG_MESSAGE_ID, ARG_MANAGE_SERVERS);
 
-        if (fragment != null
-                && Intent.ACTION_SEND.equals(intent.getAction())
-                && "text/plain".equals(intent.getType())) {
+        if (fragment != null && Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())) {
 
-            setFragmentShareText(fragment,
-                    intent.getStringExtra(Intent.EXTRA_TEXT));
+            setFragmentShareText(fragment, intent.getStringExtra(Intent.EXTRA_TEXT));
         }
     }
 
@@ -565,13 +550,19 @@ public class MainActivity extends ThemedActivity
         mToolbar = toolbar;
     }
 
+    @Override
+    public ActionMode startSupportActionMode(@NonNull ActionMode.Callback callback) {
+        return super.startSupportActionMode(callback);
+    }
+
     public Toolbar getToolbar() {
         return mToolbar;
     }
 
     public void addActionBarDrawerToggle(Toolbar toolbar) {
-        LockableDrawerLayout.ActionBarDrawerToggle toggle = new LockableDrawerLayout.ActionBarDrawerToggle(
-                toolbar, mDrawerLayout, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
+        LockableDrawerLayout.ActionBarDrawerToggle toggle =
+                new LockableDrawerLayout.ActionBarDrawerToggle(toolbar, mDrawerLayout,
+                        R.string.navigation_drawer_open, R.string.navigation_drawer_close);
         // mDrawerLayout.addDrawerListener(toggle);
     }
 
@@ -596,7 +587,8 @@ public class MainActivity extends ThemedActivity
     }
 
     private void showNickUnavailableDialog(ServerConnectionSession connection) {
-        View view = LayoutInflater.from(this).inflate(R.layout.dialog_nick_unavailable, null, false);
+        View view = LayoutInflater.from(this).inflate(R.layout.dialog_nick_unavailable, null,
+                false);
         android.widget.TextView reasonView = view.findViewById(R.id.nick_unavailable_reason);
         android.widget.TextView triedView = view.findViewById(R.id.nick_unavailable_tried);
         android.widget.EditText input = view.findViewById(R.id.nick_unavailable_input);
@@ -611,27 +603,22 @@ public class MainActivity extends ThemedActivity
             triedView.setVisibility(View.GONE);
 
         mNickDialogSession = connection;
-        mNickDialog = new AlertDialog.Builder(this)
-                .setTitle(R.string.nick_unavailable_title)
-                .setView(view)
-                .setPositiveButton(R.string.action_connect, (d, which) -> {
-                    mNickDialog = null;
-                    mNickDialogSession = null;
-                    String nick = input.getText().toString().trim();
-                    if (!nick.isEmpty())
-                        connection.reconnectWithNick(nick);
-                })
-                .setNegativeButton(android.R.string.cancel, (d, which) -> {
-                    mNickDialog = null;
-                    mNickDialogSession = null;
-                    ServerConnectionManager.getInstance(this).removeConnection(connection);
-                })
-                .setOnCancelListener(d -> {
-                    mNickDialog = null;
-                    mNickDialogSession = null;
-                    ServerConnectionManager.getInstance(this).removeConnection(connection);
-                })
-                .create();
+        mNickDialog =
+                new AlertDialog.Builder(this).setTitle(R.string.nick_unavailable_title).setView(view).setPositiveButton(R.string.action_connect, (d, which) -> {
+            mNickDialog = null;
+            mNickDialogSession = null;
+            String nick = input.getText().toString().trim();
+            if (!nick.isEmpty())
+                connection.reconnectWithNick(nick);
+        }).setNegativeButton(android.R.string.cancel, (d, which) -> {
+            mNickDialog = null;
+            mNickDialogSession = null;
+            ServerConnectionManager.getInstance(this).removeConnection(connection);
+        }).setOnCancelListener(d -> {
+            mNickDialog = null;
+            mNickDialogSession = null;
+            ServerConnectionManager.getInstance(this).removeConnection(connection);
+        }).create();
         mNickDialog.show();
     }
 
@@ -647,26 +634,20 @@ public class MainActivity extends ThemedActivity
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         if (prefs.getBoolean(PREF_BATTERY_OPT_ASKED, false))
             return;
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.battery_opt_title)
-                .setMessage(R.string.battery_opt_message)
-                .setPositiveButton(R.string.battery_opt_grant, (d, which) -> {
-                    prefs.edit().putBoolean(PREF_BATTERY_OPT_ASKED, true).apply();
-                    Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-                    intent.setData(Uri.parse("package:" + getPackageName()));
-                    startActivity(intent);
-                })
-                .setNegativeButton(R.string.battery_opt_not_now, (d, which) ->
-                        prefs.edit().putBoolean(PREF_BATTERY_OPT_ASKED, true).apply())
-                .show();
+        new AlertDialog.Builder(this).setTitle(R.string.battery_opt_title).setMessage(R.string.battery_opt_message).setPositiveButton(R.string.battery_opt_grant, (d, which) -> {
+            prefs.edit().putBoolean(PREF_BATTERY_OPT_ASKED, true).apply();
+            Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+            intent.setData(Uri.parse("package:" + getPackageName()));
+            startActivity(intent);
+        }).setNegativeButton(R.string.battery_opt_not_now,
+                (d, which) -> prefs.edit().putBoolean(PREF_BATTERY_OPT_ASKED, true).apply()).show();
     }
 
     public void dismissFragmentDialog() {
         if (mCurrentDialog != null) {
-            InputMethodManager manager = (InputMethodManager) getSystemService(
-                    Context.INPUT_METHOD_SERVICE);
-            manager.hideSoftInputFromWindow(mCurrentDialog.getWindow().getDecorView()
-                    .getApplicationWindowToken(), 0);
+            InputMethodManager manager =
+                    (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            manager.hideSoftInputFromWindow(mCurrentDialog.getWindow().getDecorView().getApplicationWindowToken(), 0);
 
             mCurrentDialog.setOnDismissListener(null);
             mCurrentDialog.dismiss();
@@ -674,8 +655,10 @@ public class MainActivity extends ThemedActivity
         }
     }
 
-    public void setCurrentChannelInfo(ServerConnectionSession server, String topic, String topicSetBy,
-                                      Date topicSetOn, List<NickWithPrefix> members) {
+    @Override
+    public void setCurrentChannelInfo(ServerConnectionSession server, String topic,
+                                      String topicSetBy, Date topicSetOn,
+                                      List<NickWithPrefix> members) {
         if (mChannelInfoAdapter == null)
             return;
         mChannelInfoAdapter.setData(server, topic, topicSetBy, topicSetOn, members);
@@ -687,7 +670,8 @@ public class MainActivity extends ThemedActivity
         if (visible) {
             mDrawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED, GravityCompat.END);
         } else {
-            mDrawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED, GravityCompat.END);
+            mDrawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED,
+                    GravityCompat.END);
             mDrawerLayout.closeDrawer(GravityCompat.END);
         }
     }
@@ -710,8 +694,7 @@ public class MainActivity extends ThemedActivity
         }
 
         boolean membersVisible =
-                mDrawerLayout.getDrawerLockMode(GravityCompat.END)
-                        != DrawerLayout.LOCK_MODE_LOCKED_CLOSED;
+                mDrawerLayout.getDrawerLockMode(GravityCompat.END) != DrawerLayout.LOCK_MODE_LOCKED_CLOSED;
 
         ChatMenuState state = mMenuResolver.resolve(fragment, membersVisible);
 
@@ -760,8 +743,8 @@ public class MainActivity extends ThemedActivity
     }
 
     private void showUserSearchDialog() {
-        UserSearchDialog dialog = new UserSearchDialog(this, ((ChatFragment)
-                getCurrentFragment()).getConnectionInfo(), mNavigator);
+        UserSearchDialog dialog = new UserSearchDialog(this,
+                ((ChatFragment) getCurrentFragment()).getConnectionInfo(), mNavigator);
         dialog.show();
         setFragmentDialog(dialog);
     }
@@ -769,26 +752,24 @@ public class MainActivity extends ThemedActivity
     private void showJoinChannelDialog() {
         View v = LayoutInflater.from(this).inflate(R.layout.dialog_chip_edit_text, null);
         ChipsEditText editText = v.findViewById(R.id.chip_edit_text);
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(R.string.action_join_channel)
-                .setView(v)
-                .setPositiveButton(R.string.action_ok, (DialogInterface d, int which) -> {
-                    editText.clearFocus();
-                    String[] channels = editText.getItems();
-                    if (channels.length == 0)
-                        return;
-                    ChatFragment currentChat = (ChatFragment) getCurrentFragment();
-                    ChatApi api = currentChat.getConnectionInfo().getApiInstance();
-                    currentChat.setAutoOpenChannel(channels[0]);
-                    api.joinChannels(Arrays.asList(channels), null, null);
-                })
-                .setNeutralButton(R.string.title_activity_channel_list, (DialogInterface d, int which) -> {
-                    ServerConnectionSession info = ((ChatFragment) getCurrentFragment()).getConnectionInfo();
-                    Intent intent = new Intent(this, ChannelListActivity.class);
-                    intent.putExtra(ChannelListActivity.ARG_SERVER_UUID, info.getUUID().toString());
-                    startActivity(intent);
-                })
-                .create();
+        AlertDialog dialog =
+                new AlertDialog.Builder(this).setTitle(R.string.action_join_channel).setView(v).setPositiveButton(R.string.action_ok, (DialogInterface d, int which) -> {
+            editText.clearFocus();
+            String[] channels = editText.getItems();
+            if (channels.length == 0)
+                return;
+            ChatFragment currentChat = (ChatFragment) getCurrentFragment();
+            ChatApi api = currentChat.getConnectionInfo().getApiInstance();
+            currentChat.setAutoOpenChannel(channels[0]);
+            api.joinChannels(Arrays.asList(channels), null, null);
+        }).setNeutralButton(R.string.title_activity_channel_list,
+                        (DialogInterface d, int which) -> {
+            ServerConnectionSession info =
+                    ((ChatFragment) getCurrentFragment()).getConnectionInfo();
+            Intent intent = new Intent(this, ChannelListActivity.class);
+            intent.putExtra(ChannelListActivity.ARG_SERVER_UUID, info.getUUID().toString());
+            startActivity(intent);
+        }).create();
         dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
         dialog.show();
         dialog.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM);

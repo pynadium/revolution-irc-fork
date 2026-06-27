@@ -1,5 +1,6 @@
 package io.mrarm.irc.chat;
 
+import android.content.Context;
 import android.database.DataSetObserver;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -8,6 +9,7 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 
 import androidx.annotation.Keep;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
@@ -23,10 +25,15 @@ import java.util.List;
 import java.util.UUID;
 
 import io.mrarm.irc.ChannelNotificationManager;
-import io.mrarm.irc.MainActivity;
 import io.mrarm.irc.NotificationManager;
 import io.mrarm.irc.R;
 import io.mrarm.irc.app.navigation.NavigationHost;
+import io.mrarm.irc.chat.host.ChannelInfoConsumer;
+import io.mrarm.irc.chat.host.ChatActivityHost;
+import io.mrarm.irc.chat.host.MessageJumpHost;
+import io.mrarm.irc.chat.host.ScrollStateProvider;
+import io.mrarm.irc.chat.host.SendChannelController;
+import io.mrarm.irc.chat.host.TabVisibilityController;
 import io.mrarm.irc.config.ChatSettings;
 import io.mrarm.irc.config.NickAutocompleteSettings;
 import io.mrarm.irc.config.SettingsHelper;
@@ -36,10 +43,7 @@ import io.mrarm.irc.connection.ServerConnectionSession;
 import io.mrarm.irc.protocol.dto.NickWithPrefix;
 
 @Keep
-public class ChatFragment extends Fragment implements
-        ServerConnectionSession.ChannelListChangeListener,
-        ServerConnectionSession.InfoChangeListener,
-        NotificationManager.UnreadMessageCountCallback {
+public class ChatFragment extends Fragment implements ServerConnectionSession.ChannelListChangeListener, ServerConnectionSession.InfoChangeListener, NotificationManager.UnreadMessageCountCallback, ChannelInfoConsumer, MessageJumpHost, ScrollStateProvider, SendChannelController, TabVisibilityController {
 
     public static final String ARG_SERVER_UUID = "server_uuid";
     public static final String ARG_CHANNEL_NAME = "channel";
@@ -57,8 +61,10 @@ public class ChatFragment extends Fragment implements
     private OneTimeMessageJump mMessageJump;
     private String mAutoOpenChannel;
     private boolean mIsScrolling = false;
+    private ChatActivityHost mHost;
 
-    public static ChatFragment newInstance(ServerConnectionSession server, String channel, String messageId) {
+    public static ChatFragment newInstance(ServerConnectionSession server, String channel,
+                                           String messageId) {
         ChatFragment fragment = new ChatFragment();
         Bundle args = new Bundle();
         args.putString(ARG_SERVER_UUID, server.getUUID().toString());
@@ -71,11 +77,19 @@ public class ChatFragment extends Fragment implements
     }
 
     @Override
-    public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+    public void onAttach(@NonNull Context context) {
+        super.onAttach(context);
+        mHost = (ChatActivityHost) context;
+    }
+
+    @Override
+    public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container,
+                             @Nullable Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.chat_fragment, container, false);
 
         UUID connectionUUID = UUID.fromString(getArguments().getString(ARG_SERVER_UUID));
-        mConnectionInfo = ServerConnectionManager.getInstance(getContext()).getConnection(connectionUUID);
+        mConnectionInfo =
+                ServerConnectionManager.getInstance(getContext()).getConnection(connectionUUID);
         String requestedChannel = getArguments().getString(ARG_CHANNEL_NAME);
         String requestedMessageId = getArguments().getString(ARG_MESSAGE_ID);
 
@@ -94,9 +108,10 @@ public class ChatFragment extends Fragment implements
         ((AppCompatActivity) getActivity()).setSupportActionBar(toolbar);
         ((AppCompatActivity) getActivity()).getSupportActionBar().setTitle(mConnectionInfo.getName());
 
-        ((MainActivity) getActivity()).addActionBarDrawerToggle(toolbar);
+        mHost.addActionBarDrawerToggle(toolbar);
 
-        mSectionsPagerAdapter = new ChatPagerAdapter(getContext(), getChildFragmentManager(), mConnectionInfo, savedInstanceState);
+        mSectionsPagerAdapter = new ChatPagerAdapter(getContext(), getChildFragmentManager(),
+                mConnectionInfo, savedInstanceState);
 
         mViewPager = rootView.findViewById(R.id.container);
         mViewPager.setAdapter(mSectionsPagerAdapter);
@@ -111,7 +126,7 @@ public class ChatFragment extends Fragment implements
 
             @Override
             public void onPageSelected(int i) {
-                ((MainActivity) getActivity()).getDrawerHelper().setSelectedChannel(mConnectionInfo,
+                mHost.getDrawerHelper().setSelectedChannel(mConnectionInfo,
                         mSectionsPagerAdapter.getChannel(i));
             }
 
@@ -156,7 +171,9 @@ public class ChatFragment extends Fragment implements
                 }
             });
         });
-        mTabLayout.addOnLayoutChangeListener((View v, int left, int top, int right, int bottom, int oldLeft, int oldTop, int oldRight, int oldBottom) -> {
+        mTabLayout.addOnLayoutChangeListener((View v, int left, int top, int right, int bottom,
+                                              int oldLeft, int oldTop, int oldRight,
+                                              int oldBottom) -> {
             if (left == oldLeft && top == oldTop && right == oldRight && bottom == oldBottom)
                 return;
             mTabLayout.setScrollPosition(mTabLayout.getSelectedTabPosition(), 0.f, false);
@@ -205,25 +222,28 @@ public class ChatFragment extends Fragment implements
             mTabLayout.getTabAt(currentItem).select();
     }
 
+    @Override
+    public void onSendChannelChanged(String channel) {
+        getSendMessageHelper().setCurrentChannel(channel);
+    }
+
     private void updateTabLayoutTab(TabLayout.Tab tab) {
         String channel = (String) tab.getTag();
         boolean highlight = false;
         if (channel != null) {
-            ChannelNotificationManager data = mConnectionInfo.getNotificationManager().getChannelManager(channel, false);
+            ChannelNotificationManager data =
+                    mConnectionInfo.getNotificationManager().getChannelManager(channel, false);
             if (data != null)
                 highlight = data.hasUnreadMessages();
         }
-        tab.getCustomView().findViewById(R.id.notification_icon).setVisibility(highlight ? View.VISIBLE : View.GONE);
+        tab.getCustomView().findViewById(R.id.notification_icon).setVisibility(highlight ?
+                View.VISIBLE : View.GONE);
     }
 
-    @UiSettingChangeCallback(keys = {
-            ChatSettings.PREF_APPBAR_COMPACT_MODE,
-            ChatSettings.PREF_TEXT_AUTOCORRECT_ENABLED,
-            ChatSettings.PREF_FONT,
+    @UiSettingChangeCallback(keys = {ChatSettings.PREF_APPBAR_COMPACT_MODE,
+            ChatSettings.PREF_TEXT_AUTOCORRECT_ENABLED, ChatSettings.PREF_FONT,
             ChatSettings.PREF_SEND_BOX_ALWAYS_MULTILINE,
-            NickAutocompleteSettings.PREF_SHOW_BUTTON,
-            NickAutocompleteSettings.PREF_DOUBLE_TAP
-    })
+            NickAutocompleteSettings.PREF_SHOW_BUTTON, NickAutocompleteSettings.PREF_DOUBLE_TAP})
     private void onSettingChange() {
         if (getView() != null)
             updateToolbarCompactLayoutStatus(getView().getBottom() - getView().getTop());
@@ -235,19 +255,20 @@ public class ChatFragment extends Fragment implements
 
     public void updateToolbarCompactLayoutStatus(int height) {
         String mode = ChatSettings.getAppbarCompactMode();
-        boolean enabled = mode.equals(SettingsHelper.COMPACT_MODE_ALWAYS) ||
-                (mode.equals(SettingsHelper.COMPACT_MODE_AUTO) &&
-                        height < getResources().getDimensionPixelSize(R.dimen.compact_toolbar_activate_height));
+        boolean enabled =
+                mode.equals(SettingsHelper.COMPACT_MODE_ALWAYS) || (mode.equals(SettingsHelper.COMPACT_MODE_AUTO) && height < getResources().getDimensionPixelSize(R.dimen.compact_toolbar_activate_height));
         setUseToolbarCompactLayout(enabled);
     }
 
     public void setUseToolbarCompactLayout(boolean enable) {
-        Toolbar toolbar = ((MainActivity) getActivity()).getToolbar();
+        Toolbar toolbar = mHost.getToolbar();
         if (enable == (mTabLayout.getParent() == toolbar))
             return;
         ((ViewGroup) mTabLayout.getParent()).removeView(mTabLayout);
         if (enable) {
-            ViewGroup.LayoutParams params = new Toolbar.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+            ViewGroup.LayoutParams params =
+                    new Toolbar.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT);
             params.height = ViewGroup.LayoutParams.MATCH_PARENT;
             mTabLayout.setLayoutParams(params);
             toolbar.addView(mTabLayout);
@@ -263,6 +284,7 @@ public class ChatFragment extends Fragment implements
         }
     }
 
+    @Override
     public void setTabsHidden(boolean hidden) {
         mTabLayout.setVisibility(hidden ? View.GONE : View.VISIBLE);
     }
@@ -283,7 +305,8 @@ public class ChatFragment extends Fragment implements
         if (messageId != null) {
             try {
                 msgId = Long.parseLong(messageId);
-            } catch (NumberFormatException ignored) {}
+            } catch (NumberFormatException ignored) {
+            }
         }
 
         if (msgId != null)
@@ -293,13 +316,14 @@ public class ChatFragment extends Fragment implements
         if (i == 0) {
             // If channel was not found, cancel the notification as we most probably came here from
             // a notification.
-            ChannelNotificationManager chanMgr = mConnectionInfo.getNotificationManager()
-                    .getChannelManager(channel, false);
+            ChannelNotificationManager chanMgr =
+                    mConnectionInfo.getNotificationManager().getChannelManager(channel, false);
             if (chanMgr != null)
                 chanMgr.cancelNotification(getActivity());
         }
     }
 
+    @Override
     public Long getAndClearMessageJump(String channel) {
         if (channel != null && mMessageJump != null && channel.equals(mMessageJump.mChannel)) {
             OneTimeMessageJump ret = mMessageJump;
@@ -309,10 +333,10 @@ public class ChatFragment extends Fragment implements
         return null;
     }
 
+    @Override
     public void setCurrentChannelInfo(String topic, String topicSetBy, Date topicSetOn,
                                       List<NickWithPrefix> members) {
-        ((MainActivity) getActivity()).setCurrentChannelInfo(getConnectionInfo(),
-                topic, topicSetBy, topicSetOn, members);
+        mHost.setCurrentChannelInfo(getConnectionInfo(), topic, topicSetBy, topicSetOn, members);
         if (mSendHelper != null)
             mSendHelper.setCurrentChannelMembers(members);
     }
@@ -321,6 +345,7 @@ public class ChatFragment extends Fragment implements
         return mSectionsPagerAdapter.getChannel(mViewPager.getCurrentItem());
     }
 
+    @Override
     public boolean isScrolling() {
         return mIsScrolling;
     }

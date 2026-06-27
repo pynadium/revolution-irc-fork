@@ -20,6 +20,7 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 
 import androidx.annotation.Keep;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.view.ActionMode;
 import androidx.fragment.app.Fragment;
@@ -38,6 +39,12 @@ import io.mrarm.irc.IRCChooserTargetService;
 import io.mrarm.irc.MainActivity;
 import io.mrarm.irc.NotificationManager;
 import io.mrarm.irc.R;
+import io.mrarm.irc.chat.host.ActionModeHost;
+import io.mrarm.irc.chat.host.ChannelInfoConsumer;
+import io.mrarm.irc.chat.host.MessageJumpHost;
+import io.mrarm.irc.chat.host.ScrollStateProvider;
+import io.mrarm.irc.chat.host.SendChannelController;
+import io.mrarm.irc.chat.host.TabVisibilityController;
 import io.mrarm.irc.config.ChatSettings;
 import io.mrarm.irc.config.MessageFormatSettings;
 import io.mrarm.irc.config.SettingsHelper;
@@ -103,6 +110,12 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
     private long mUnreadCheckedFirst = -1;
     private long mUnreadCheckedLast = -1;
     private MessageId mUnreadCheckFor;
+    private ActionModeHost mActionModeHost;
+    private TabVisibilityController mTabController;
+    private MessageJumpHost mJumpHost;
+    private SendChannelController mSendChannelController;
+    private ScrollStateProvider mScrollStateProvider;
+    private ChannelInfoConsumer mChannelInfoConsumer;
 
     // Tracks "is the user following the live feed" independent of layout snapshots taken at
     // message-arrival time - LinearLayoutManager only reflects the last completed layout pass,
@@ -126,13 +139,31 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
     }
 
     @Override
+    public void onAttach(@NonNull Context context) {
+        super.onAttach(context);
+        if (context instanceof ActionModeHost)
+            mActionModeHost = (ActionModeHost) context;
+        Fragment parent = getParentFragment();
+        if (parent instanceof TabVisibilityController)
+            mTabController = (TabVisibilityController) parent;
+        if (parent instanceof MessageJumpHost)
+            mJumpHost = (MessageJumpHost) parent;
+        if (parent instanceof SendChannelController)
+            mSendChannelController = (SendChannelController) parent;
+        if (parent instanceof ScrollStateProvider)
+            mScrollStateProvider = (ScrollStateProvider) parent;
+        if (parent instanceof ChannelInfoConsumer)
+            mChannelInfoConsumer = (ChannelInfoConsumer) parent;
+    }
+
+    @Override
     public void setUserVisibleHint(boolean isVisibleToUser) {
         super.setUserVisibleHint(isVisibleToUser);
         if (isVisibleToUser && getParentFragment() != null)
             updateParentCurrentChannel();
         if (isVisibleToUser && getParentFragment() != null)
-            ((ChatFragment) getParentFragment()).getSendMessageHelper()
-                    .setCurrentChannel(mChannelName);
+            if (mSendChannelController != null)
+                mSendChannelController.onSendChannelChanged(mChannelName);
         if (!isVisibleToUser) {
             hideMessagesActionMenu();
         }
@@ -192,12 +223,13 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         super.onCreate(savedInstanceState);
 
         UUID connectionUUID = UUID.fromString(getArguments().getString(ARG_SERVER_UUID));
-        ServerConnectionSession connectionInfo = ServerConnectionManager.getInstance(getContext())
-                .getConnection(connectionUUID);
+        ServerConnectionSession connectionInfo =
+                ServerConnectionManager.getInstance(getContext()).getConnection(connectionUUID);
         mConnection = connectionInfo;
         mChannelName = getArguments().getString(ARG_CHANNEL_NAME);
 
-        this.mRoomRepo = ((ServerConnectionApi) mConnection.getApiInstance()).getServerConnectionData().getMessageStorageRepository();
+        this.mRoomRepo =
+                ((ServerConnectionApi) mConnection.getApiInstance()).getServerConnectionData().getMessageStorageRepository();
 
         if (mChannelName != null) {
             mAdapter = new ChatMessagesAdapter(this, new ArrayList<>(), new ArrayList<>());
@@ -206,51 +238,51 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
             Log.i(TAG, "Request message list for: " + mChannelName);
             connectionInfo.getApiInstance().getChannelInfo(mChannelName,
                     (ChannelInfo channelInfo) -> {
-                        Log.i(TAG, "Got channel info " + mChannelName);
-                        // Callback fires on the send executor thread. Marshal all field writes
-                        // and the subsequent UI update to the main thread.
-                        mMainHandler.post(() -> {
-                            mChannelTopic = channelInfo.getTopic();
-                            mChannelTopicSetBy = channelInfo.getTopicSetBy();
-                            mChannelTopicSetOn = channelInfo.getTopicSetOn();
-                            onMemberListChanged(channelInfo.getMembers());
-                        });
-                    }, null);
+                Log.i(TAG, "Got channel info " + mChannelName);
+                // Callback fires on the send executor thread. Marshal all field writes
+                // and the subsequent UI update to the main thread.
+                mMainHandler.post(() -> {
+                    mChannelTopic = channelInfo.getTopic();
+                    mChannelTopicSetBy = channelInfo.getTopicSetBy();
+                    mChannelTopicSetOn = channelInfo.getTopicSetOn();
+                    onMemberListChanged(channelInfo.getMembers());
+                });
+            }, null);
 
             connectionInfo.getApiInstance().subscribeChannelInfo(mChannelName, this, null, null);
             mNeedsUnsubscribeChannelInfo = true;
 
-            Long jumpId = ((ChatFragment) getParentFragment()).getAndClearMessageJump(mChannelName);
+            Long jumpId = mJumpHost != null ? mJumpHost.getAndClearMessageJump(mChannelName) : null;
             reloadMessages(jumpId);
 
             MessageBus bus =
-                    ((ServerConnectionApi) mConnection.getApiInstance())
-                            .getServerConnectionData()
-                            .getMessageBus();
+                    ((ServerConnectionApi) mConnection.getApiInstance()).getServerConnectionData().getMessageBus();
 
             bus.subscribe(mChannelName, this);
             mNeedsUnsubscribeMessages = true;
 
 
         } else if (getArguments().getBoolean(ARG_DISPLAY_STATUS)) {
-            mStatusAdapter = new ServerStatusMessagesAdapter(mConnection, new StatusMessageList(new ArrayList<>()));
+            mStatusAdapter = new ServerStatusMessagesAdapter(mConnection,
+                    new StatusMessageList(new ArrayList<>()));
             mStatusAdapter.setMessageFont(ChatSettings.getFont(), ChatSettings.getFontSize());
 
             Log.i(TAG, "Request status message list");
             connectionInfo.getApiInstance().getStatusMessages(100, null,
                     (StatusMessageList messages) -> {
-                        Log.i(TAG, "Got server status message list: " +
-                                messages.getMessages().size() + " messages");
-                        mStatusMessages = messages.getMessages();
-                        mNeedsUnsubscribeStatusMessages = true;
-                        updateMessageList(() -> {
-                            mStatusAdapter.setMessages(messages);
-                            if (mRecyclerView != null)
-                                mRecyclerView.scrollToPosition(mStatusAdapter.getItemCount() - 1);
-                        });
+                Log.i(TAG, "Got server status message list: " + messages.getMessages().size() +
+                        " messages");
+                mStatusMessages = messages.getMessages();
+                mNeedsUnsubscribeStatusMessages = true;
+                updateMessageList(() -> {
+                    mStatusAdapter.setMessages(messages);
+                    if (mRecyclerView != null)
+                        mRecyclerView.scrollToPosition(mStatusAdapter.getItemCount() - 1);
+                });
 
-                        connectionInfo.getApiInstance().subscribeStatusMessages(ChatMessagesFragment.this, null, null);
-                    }, null);
+                connectionInfo.getApiInstance().subscribeStatusMessages(ChatMessagesFragment.this
+                        , null, null);
+            }, null);
         }
 
         SettingsHelper.registerCallbacks(this);
@@ -266,13 +298,12 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
             mConnection.getApiInstance().unsubscribeChannelInfo(getArguments().getString(ARG_CHANNEL_NAME), ChatMessagesFragment.this, null, null);
         if (mNeedsUnsubscribeMessages) {
             MessageBus bus =
-                    ((ServerConnectionApi) mConnection.getApiInstance())
-                            .getServerConnectionData()
-                            .getMessageBus();
+                    ((ServerConnectionApi) mConnection.getApiInstance()).getServerConnectionData().getMessageBus();
             bus.unsubscribe(mChannelName, this);
         }
         if (mNeedsUnsubscribeStatusMessages)
-            mConnection.getApiInstance().unsubscribeStatusMessages(ChatMessagesFragment.this, null, null);
+            mConnection.getApiInstance().unsubscribeStatusMessages(ChatMessagesFragment.this,
+                    null, null);
 
         mConnection.getNotificationManager().removeUnreadMessageCountCallback(this);
 
@@ -303,9 +334,8 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         mRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
-                int count = mAdapter == null
-                        ? (mStatusAdapter == null ? 0 : mStatusAdapter.getItemCount())
-                        : mAdapter.getItemCount();
+                int count = mAdapter == null ? (mStatusAdapter == null ? 0 :
+                        mStatusAdapter.getItemCount()) : mAdapter.getItemCount();
                 int last = mLayoutManager.findLastVisibleItemPosition();
                 mAtBottom = last >= 0 && last >= count - 1;
 
@@ -320,44 +350,33 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
                     long firstId = mAdapter.getFirstMessageId();  // oldest currently displayed
                     mIsLoadingMore = true;
 
-                    mRoomRepo.loadOlderAsync(
-                            mConnection.getUUID(),
-                            mChannelName,
-                            firstId,
-                            100,
-                            getExcludeTypesForQuery(),
-                            (olderList) -> {
-                                MessageList messages = mRoomRepo.toMessageListFromRoom(olderList);
-                                updateMessageList(() -> {
-                                    mAdapter.addMessagesToTop(messages.getMessages(), messages.getMessageIds());
-                                    mIsLoadingMore = false;
-                                });
-                            }
-                    );
+                    mRoomRepo.loadOlderAsync(mConnection.getUUID(), mChannelName, firstId, 100,
+                            getExcludeTypesForQuery(), (olderList) -> {
+                        MessageList messages = mRoomRepo.toMessageListFromRoom(olderList);
+                        updateMessageList(() -> {
+                            mAdapter.addMessagesToTop(messages.getMessages(),
+                                    messages.getMessageIds());
+                            mIsLoadingMore = false;
+                        });
+                    });
                 }
                 int lastVisible = mLayoutManager.findLastVisibleItemPosition();
-                if (lastVisible <= mAdapter.getItemCount() &&
-                        lastVisible > mAdapter.getItemCount() - LOAD_MORE_BEFORE_INDEX) {
+                if (lastVisible <= mAdapter.getItemCount() && lastVisible > mAdapter.getItemCount() - LOAD_MORE_BEFORE_INDEX) {
                     if (mIsLoadingMore || !mAdapter.hasMessages())
                         return;
                     Log.i(TAG, "Load more (newer): " + mChannelName);
                     long lastId = mAdapter.getLastMessageId();
                     mIsLoadingMore = true;
 
-                    mRoomRepo.loadNewerAsync(
-                            mConnection.getUUID(),
-                            mChannelName,
-                            lastId,
-                            100,
-                            getExcludeTypesForQuery(),
-                            (newerList) -> {
-                                MessageList messages = mRoomRepo.toMessageListFromRoom(newerList);
-                                updateMessageList(() -> {
-                                    mAdapter.addMessagesToBottom(messages.getMessages(), messages.getMessageIds());
-                                    mIsLoadingMore = false;
-                                });
-                            }
-                    );
+                    mRoomRepo.loadNewerAsync(mConnection.getUUID(), mChannelName, lastId, 100,
+                            getExcludeTypesForQuery(), (newerList) -> {
+                        MessageList messages = mRoomRepo.toMessageListFromRoom(newerList);
+                        updateMessageList(() -> {
+                            mAdapter.addMessagesToBottom(messages.getMessages(),
+                                    messages.getMessageIds());
+                            mIsLoadingMore = false;
+                        });
+                    });
                 }
             }
         });
@@ -368,8 +387,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
             MessageId msgId = mgr.getFirstUnreadMessage();
             int index = mAdapter.findMessageWithId(msgId);
             if (index != -1) {
-                ((LinearLayoutManager) mRecyclerView.getLayoutManager())
-                        .scrollToPositionWithOffset(index, 0);
+                ((LinearLayoutManager) mRecyclerView.getLayoutManager()).scrollToPositionWithOffset(index, 0);
             } else {
                 // We don't have a matching message in the current list,
                 // just reload using the Room-based path (no jump for now).
@@ -378,7 +396,8 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
             mgr.clearUnreadMessages();
         });
         mUnreadDiscard.setOnClickListener((v) -> {
-            ChannelNotificationManager mgr = mConnection.getNotificationManager().getChannelManager(mChannelName, true);
+            ChannelNotificationManager mgr =
+                    mConnection.getNotificationManager().getChannelManager(mChannelName, true);
             mgr.clearUnreadMessages();
         });
 
@@ -394,12 +413,11 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
                 ChatSelectTouchListener newSelectTouchListener =
                         new ChatSelectTouchListener(mRecyclerView);
                 newSelectTouchListener.setMultiSelectListener(selectTouchListener);
-                newSelectTouchListener.setActionModeStateCallback((android.view.ActionMode actionMode,
-                                                                   boolean b) -> {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-                            actionMode.getType() == android.view.ActionMode.TYPE_FLOATING)
+                newSelectTouchListener.setActionModeStateCallback((android.view.ActionMode actionMode, boolean b) -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && actionMode.getType() == android.view.ActionMode.TYPE_FLOATING)
                         return;
-                    ((ChatFragment) getParentFragment()).setTabsHidden(b);
+                    if (mTabController != null)
+                        mTabController.setTabsHidden(b);
                 });
                 mAdapter.setSelectListener(newSelectTouchListener);
                 mRecyclerView.addOnItemTouchListener(newSelectTouchListener);
@@ -409,8 +427,8 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         }
 
         if (getUserVisibleHint())
-            ((ChatFragment) getParentFragment()).getSendMessageHelper()
-                    .setCurrentChannel(mChannelName);
+            if (mSendChannelController != null)
+                mSendChannelController.onSendChannelChanged(mChannelName);
 
         updateUnreadCounter();
 
@@ -441,11 +459,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         mUnreadCheckedFirst = -1;
         mUnreadCheckedLast = -1;
 
-        mAdapter.setNewMessagesStart(
-                mConnection.getNotificationManager()
-                        .getChannelManager(mChannelName, true)
-                        .getFirstUnreadMessage()
-        );
+        mAdapter.setNewMessagesStart(mConnection.getNotificationManager().getChannelManager(mChannelName, true).getFirstUnreadMessage());
 
         UUID serverId = mConnection.getUUID();
 
@@ -453,28 +467,24 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         if (nearMessageRoomId != null) {
 
             mRoomRepo.loadNearAsync(serverId, mChannelName, nearMessageRoomId, 100,
-                    getExcludeTypesForQuery(),
-                    (list) -> {
-                        MessageList msgList = mRoomRepo.toMessageListFromRoom(list);
-                        updateMessageList(() -> {
-                            mAdapter.setMessages(msgList.getMessages(), msgList.getMessageIds());
+                    getExcludeTypesForQuery(), (list) -> {
+                MessageList msgList = mRoomRepo.toMessageListFromRoom(list);
+                updateMessageList(() -> {
+                    mAdapter.setMessages(msgList.getMessages(), msgList.getMessageIds());
 
-                            int index = mAdapter.findMessageWithId(
-                                    new RoomMessageId(nearMessageRoomId)
-                            );
-                            if (index >= 0) {
-                                ((LinearLayoutManager) mRecyclerView.getLayoutManager())
-                                        .scrollToPositionWithOffset(index, 0);
-                            }
-                        });
+                    int index = mAdapter.findMessageWithId(new RoomMessageId(nearMessageRoomId));
+                    if (index >= 0) {
+                        ((LinearLayoutManager) mRecyclerView.getLayoutManager()).scrollToPositionWithOffset(index, 0);
                     }
-            );
+                });
+            });
 
             return;
         }
 
         // === CASE 2: Normal first loadConnectedServers (most recent 100 messages) ===
-        mRoomRepo.loadRecentAsync(serverId, mChannelName, 100, getExcludeTypesForQuery(), (msgList) -> {
+        mRoomRepo.loadRecentAsync(serverId, mChannelName, 100, getExcludeTypesForQuery(),
+                (msgList) -> {
             updateMessageList(() -> {
                 mAdapter.setMessages(msgList.getMessages(), msgList.getMessageIds());
 
@@ -489,7 +499,8 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
     private void updateUnreadCounter() {
         if (mConnection == null || mRecyclerView == null || mAdapter == null)
             return;
-        ChannelNotificationManager mgr = mConnection.getNotificationManager().getChannelManager(mChannelName, true);
+        ChannelNotificationManager mgr =
+                mConnection.getNotificationManager().getChannelManager(mChannelName, true);
         int unread = mgr.getUnreadMessageCount();
         MessageId unreadMsg = mgr.getFirstUnreadMessage();
         if (unreadMsg == null && unread > 0 && getUserVisibleHint()) {
@@ -499,8 +510,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         if (unread > 0) {
             int index = mAdapter.findMessageWithId(unreadMsg);
             View v = mRecyclerView.getLayoutManager().findViewByPosition(index);
-            if (v != null && getUserVisibleHint() && !isInScrollAnimation() &&
-                    mRecyclerView.getLayoutManager().isViewPartiallyVisible(v, true, true)) {
+            if (v != null && getUserVisibleHint() && !isInScrollAnimation() && mRecyclerView.getLayoutManager().isViewPartiallyVisible(v, true, true)) {
                 // Already actively looking at the unread message (e.g. auto-scrolled to the
                 // live bottom) - don't flash the "new messages" divider just to clear it again
                 // on the next message.
@@ -521,13 +531,13 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
                 mUnreadCheckedLast = -1;
             }
             mUnreadCtr.setVisibility(View.VISIBLE);
-            mUnreadText.setText(getResources().getQuantityString(R.plurals.unread_message_counter, unread, unread));
+            mUnreadText.setText(getResources().getQuantityString(R.plurals.unread_message_counter
+                    , unread, unread));
         }
     }
 
     private boolean isInScrollAnimation() {
-        Fragment parent = getParentFragment();
-        return parent instanceof ChatFragment && ((ChatFragment) parent).isScrolling();
+        return mScrollStateProvider != null && mScrollStateProvider.isScrolling();
     }
 
     // Called by ChatFragment once the ViewPager swipe settles, so a page that was only
@@ -554,26 +564,24 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         if (mUnreadCheckedFirst == -1 && firstId != -1) {
             mUnreadCheckedFirst = firstId;
             mUnreadCheckedLast = firstId;
-            found = checkItemForUnread(
-                    mAdapter.getMessage(mAdapter.getItemPosition(firstId)), mUnreadCheckFor);
+            found = checkItemForUnread(mAdapter.getMessage(mAdapter.getItemPosition(firstId)),
+                    mUnreadCheckFor);
         }
         while (firstId != -1 && firstId < mUnreadCheckedFirst) {
-            found |= checkItemForUnread(mAdapter.getMessage(
-                    mAdapter.getItemPosition(mUnreadCheckedFirst)), mUnreadCheckFor);
+            found |= checkItemForUnread(mAdapter.getMessage(mAdapter.getItemPosition(mUnreadCheckedFirst)), mUnreadCheckFor);
             if (found)
                 break;
             --mUnreadCheckedFirst;
         }
         while (lastId != -1 && lastId > mUnreadCheckedLast) {
-            found |= checkItemForUnread(mAdapter.getMessage(
-                    mAdapter.getItemPosition(mUnreadCheckedLast)), mUnreadCheckFor);
+            found |= checkItemForUnread(mAdapter.getMessage(mAdapter.getItemPosition(mUnreadCheckedLast)), mUnreadCheckFor);
             if (found)
                 break;
             ++mUnreadCheckedLast;
         }
         if (found) {
-            ChannelNotificationManager mgr = mConnection.getNotificationManager()
-                    .getChannelManager(mChannelName, true);
+            ChannelNotificationManager mgr =
+                    mConnection.getNotificationManager().getChannelManager(mChannelName, true);
             mgr.clearUnreadMessages();
             mUnreadCtr.setVisibility(View.GONE);
             mUnreadCheckedFirst = -1;
@@ -589,7 +597,8 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
     }
 
     @Override
-    public void onUnreadMessageCountChanged(ServerConnectionSession info, String channel, int messageCount, int oldMessageCount) {
+    public void onUnreadMessageCountChanged(ServerConnectionSession info, String channel,
+                                            int messageCount, int oldMessageCount) {
         // channel can be null - a ChannelNotificationManager keyed by a null/empty channel
         // name shows up for malformed protocol events (e.g. a CTCP reply with no resolvable
         // target channel); don't crash every other open fragment when that happens.
@@ -628,13 +637,11 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         mUnreadCtr.setVisibility(View.GONE);
     }
 
-    @UiSettingChangeCallback(keys = {
-            ChatSettings.PREF_FONT,
-            ChatSettings.PREF_FONT_SIZE,
+    @UiSettingChangeCallback(keys = {ChatSettings.PREF_FONT, ChatSettings.PREF_FONT_SIZE,
             ChatSettings.PREF_HIDE_JOIN_PART_MESSAGES,
-            // it's enough to only register to the last format preference, as all preferences are always rewritten
-            MessageFormatSettings.PREF_MESSAGE_FORMAT_EVENT_HOSTNAME
-    })
+            // it's enough to only register to the last format preference, as all preferences are
+            // always rewritten
+            MessageFormatSettings.PREF_MESSAGE_FORMAT_EVENT_HOSTNAME})
     private void onSettingChanged() {
         if (mAdapter != null) {
             mAdapter.setMessageFont(ChatSettings.getFont(), ChatSettings.getFontSize());
@@ -644,8 +651,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
             mStatusAdapter.setMessageFont(ChatSettings.getFont(), ChatSettings.getFontSize());
             mStatusAdapter.notifyDataSetChanged();
         }
-        if (ChatSettings.shouldHideJoinPartMessages() != (mMessageFilterOptions != null) &&
-                mChannelName != null) {
+        if (ChatSettings.shouldHideJoinPartMessages() != (mMessageFilterOptions != null) && mChannelName != null) {
             reloadMessages(null);
         }
     }
@@ -655,15 +661,12 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         if (activity == null)
             return;
         activity.runOnUiThread(() -> {
-            if (!isAdded()) return;
-            Fragment parent = getParentFragment();
-            if (parent instanceof ChatFragment) {
-                ((ChatFragment) parent).setCurrentChannelInfo(
-                        mChannelTopic,
+            if (!isAdded())
+                return;
+            if (mChannelInfoConsumer != null) {
+                mChannelInfoConsumer.setCurrentChannelInfo(mChannelTopic,
                         mChannelTopicSetBy != null ? mChannelTopicSetBy.getNick() : null,
-                        mChannelTopicSetOn,
-                        mMembers
-                );
+                        mChannelTopicSetOn, mMembers);
             }
         });
     }
@@ -705,11 +708,9 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
                 return;
             MessageFilterOptions opt = getFilterOptions();
             if (opt != null) {
-                if (opt.restrictToMessageTypes != null &&
-                        !opt.restrictToMessageTypes.contains(messageInfo.getType()))
+                if (opt.restrictToMessageTypes != null && !opt.restrictToMessageTypes.contains(messageInfo.getType()))
                     return;
-                if (opt.excludeMessageTypes != null &&
-                        opt.excludeMessageTypes.contains(messageInfo.getType()))
+                if (opt.excludeMessageTypes != null && opt.excludeMessageTypes.contains(messageInfo.getType()))
                     return;
             }
 
@@ -747,8 +748,8 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
             if (left.getNickPrefixes() != null && right.getNickPrefixes() != null) {
                 char leftPrefix = left.getNickPrefixes().get(0);
                 char rightPrefix = right.getNickPrefixes().get(0);
-                for (char c : ((ServerConnectionApi) mConnection.getApiInstance())
-                        .getServerConnectionData().getSupportList().getSupportedNickPrefixes()) {
+                for (char c :
+                        ((ServerConnectionApi) mConnection.getApiInstance()).getServerConnectionData().getSupportList().getSupportedNickPrefixes()) {
                     if (leftPrefix == c && rightPrefix != c)
                         return -1;
                     if (rightPrefix == c && leftPrefix != c)
@@ -775,7 +776,8 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         if (mMessagesActionModeCallback == null)
             mMessagesActionModeCallback = new MessagesActionModeCallback();
         if (mMessagesActionModeCallback.mActionMode == null)
-            mMessagesActionModeCallback.mActionMode = ((MainActivity) getActivity()).startSupportActionMode(mMessagesActionModeCallback);
+            mMessagesActionModeCallback.mActionMode =
+                    mActionModeHost.startSupportActionMode(mMessagesActionModeCallback);
     }
 
     public void hideMessagesActionMenu() {
@@ -787,7 +789,8 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
 
     public void copySelectedMessages() {
         CharSequence messages = mAdapter.getSelectedMessages();
-        ClipboardManager clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+        ClipboardManager clipboard =
+                (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
         clipboard.setPrimaryClip(ClipData.newPlainText("IRC Messages", messages));
     }
 
@@ -822,13 +825,10 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         }
         mAdapter.notifyDataSetChanged();
 
-        RemoveDataTask.start(
-                requireContext(),
-                false,                  // deleteConfig
+        RemoveDataTask.start(requireContext(), false,                  // deleteConfig
                 roomIds,                    // deleteMessageEntries
                 null,                   // deleteServerLogs
-                mRoomRepo,
-                null                    // listener (optional)
+                mRoomRepo, null                    // listener (optional)
         );
     }
 
@@ -843,7 +843,8 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         public boolean onCreateActionMode(ActionMode mode, Menu menu) {
             MenuInflater inflater = mode.getMenuInflater();
             inflater.inflate(R.menu.menu_context_messages_full, menu);
-            ((ChatFragment) getParentFragment()).setTabsHidden(true);
+            if (mTabController != null)
+                mTabController.setTabsHidden(true);
             mActionMode = mode;
             return true;
         }
@@ -866,15 +867,10 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
                     return true;
                 case R.id.action_delete: {
                     int cnt = mAdapter.getSelectedItems().size();
-                    new AlertDialog.Builder(getContext())
-                            .setTitle(R.string.action_delete_confirm_title)
-                            .setMessage(getResources().getQuantityString(R.plurals.message_delete_confirm, cnt, cnt) + "\n\n" + getResources().getString(R.string.message_delete_confirm_note))
-                            .setPositiveButton(R.string.action_delete, (di, w) -> {
-                                deleteSelectedMessages();
-                                mode.finish();
-                            })
-                            .setNegativeButton(R.string.action_cancel, null)
-                            .show();
+                    new AlertDialog.Builder(getContext()).setTitle(R.string.action_delete_confirm_title).setMessage(getResources().getQuantityString(R.plurals.message_delete_confirm, cnt, cnt) + "\n\n" + getResources().getString(R.string.message_delete_confirm_note)).setPositiveButton(R.string.action_delete, (di, w) -> {
+                        deleteSelectedMessages();
+                        mode.finish();
+                    }).setNegativeButton(R.string.action_cancel, null).show();
                     return true;
                 }
                 default:
@@ -884,13 +880,10 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
 
         @Override
         public void onDestroyActionMode(ActionMode mode) {
-            ((ChatFragment) getParentFragment()).setTabsHidden(false);
+            if (mTabController != null)
+                mTabController.setTabsHidden(false);
             mAdapter.clearSelection();
             mActionMode = null;
         }
-
     }
-
-    ;
-
 }
