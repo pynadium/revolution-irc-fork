@@ -17,6 +17,7 @@ import io.mrarm.irc.chatlib.irc.cap.SASLOptions;
 import io.mrarm.irc.chatlib.irc.filters.ZNCPlaybackMessageFilter;
 import io.mrarm.irc.chatlib.irc.handlers.MessageCommandHandler;
 import io.mrarm.irc.config.ServerConfigData;
+import io.mrarm.irc.conversation.ConversationRepositoryImpl;
 import io.mrarm.irc.message.DefaultMessageBus;
 import io.mrarm.irc.message.DefaultMessagePipeline;
 import io.mrarm.irc.message.MessageBus;
@@ -33,17 +34,14 @@ public class SessionInitializer {
         this.context = context;
     }
 
-    public void attach(
-            IRCConnection connection,
-            ServerConnectionSession session,
-            ServerConfigData config,
-            SASLOptions saslOptions
-    ) {
+    public void attach(IRCConnection connection, ServerConnectionSession session,
+                       ServerConfigData config, SASLOptions saslOptions) {
         MessageStorageRepository repo = MessageStorageRepository.getInstance(context);
 
         ServerConnectionData serverConnectionData = connection.getServerConnectionData();
 
         MessageBus bus = new DefaultMessageBus();
+        session.setmConversationRepository(new ConversationRepositoryImpl(repo, bus));
         MessagePipelineContext pipelineContext = new MessagePipelineContext(config.uuid, repo);
 
         MessagePipeline pipeline = new DefaultMessagePipeline(pipelineContext, bus);
@@ -61,14 +59,8 @@ public class SessionInitializer {
             if (message.isPlayback())
                 return;
 
-            NotificationManager.getInstance()
-                    .processMessage(
-                            context.getApplicationContext(),
-                            session,
-                            channel,
-                            message,
-                            messageId
-                    );
+            NotificationManager.getInstance().processMessage(context.getApplicationContext(),
+                    session, channel, message, messageId);
         });
 
 
@@ -80,25 +72,22 @@ public class SessionInitializer {
 
         serverConnectionData.getMessageFilterList().addMessageFilter(new ZNCPlaybackMessageFilter(serverConnectionData));
 
-        MessageCommandHandler handler = serverConnectionData.getCommandHandlerList().getHandler(MessageCommandHandler.class);
+        MessageCommandHandler handler =
+                serverConnectionData.getCommandHandlerList().getHandler(MessageCommandHandler.class);
 
         DCCManager dccManager = DCCManager.getInstance(context);
         handler.setDCCServerManager(dccManager.getServer());
         handler.setDCCClientManager(dccManager.createClient(session));
-        handler.setCtcpVersionReply(
-                context.getString(R.string.app_name),
-                BuildConfig.VERSION_NAME,
-                "Android"
-        );
+        handler.setCtcpVersionReply(context.getString(R.string.app_name),
+                BuildConfig.VERSION_NAME, "Android");
 
         Handler mainHandler = new Handler(Looper.getMainLooper());
-        connection.addDisconnectListener(
-                (conn, reason) -> {
-                    // Fires on the socket read thread. Post to the main thread so that
-                    // InfoChangeListeners and reconnect scheduling always run on main.
-                    Log.d(TAG, "attach(): disconnection listener invoked. Posting notifyDisconnected to main thread.");
-                    mainHandler.post(session::notifyDisconnected);
-                }
-        );
+        connection.addDisconnectListener((conn, reason) -> {
+            // Fires on the socket read thread. Post to the main thread so that
+            // InfoChangeListeners and reconnect scheduling always run on main.
+            Log.d(TAG, "attach(): disconnection listener invoked. Posting notifyDisconnected to " +
+                    "main thread.");
+            mainHandler.post(session::notifyDisconnected);
+        });
     }
 }

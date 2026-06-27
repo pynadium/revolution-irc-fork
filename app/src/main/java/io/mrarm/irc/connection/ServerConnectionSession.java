@@ -21,6 +21,7 @@ import io.mrarm.irc.chatlib.irc.ServerConnectionData;
 import io.mrarm.irc.chatlib.irc.cap.SASLOptions;
 import io.mrarm.irc.config.AppSettings;
 import io.mrarm.irc.config.ServerConfigData;
+import io.mrarm.irc.conversation.ConversationRepository;
 import io.mrarm.irc.infrastructure.threading.DelayScheduler;
 import io.mrarm.irc.message.MessagePipeline;
 import io.mrarm.irc.message.MessageSink;
@@ -87,6 +88,7 @@ public class ServerConnectionSession {
     private final List<ChannelListChangeListener> mChannelsListeners = new ArrayList<>();
     private int mCurrentReconnectAttempt = -1;
     private final ChatUIData mChatUIData = new ChatUIData();
+    private ConversationRepository mConversationRepository;
 
     private static final String TAG = "SERVER CONNECTION SESSION";
 
@@ -568,6 +570,14 @@ public class ServerConnectionSession {
             return;
         this.connect();
     };
+
+    public ConversationRepository getmConversationRepository() {
+        return mConversationRepository;
+    }
+
+    public void setmConversationRepository(ConversationRepository repo) {
+        this.mConversationRepository = repo;
+    }
 
     public interface InfoChangeListener {
         void onConnectionInfoChanged(ServerConnectionSession connection);
