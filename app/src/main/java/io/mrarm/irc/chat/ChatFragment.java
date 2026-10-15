@@ -351,12 +351,23 @@ public class ChatFragment extends Fragment implements ServerConnectionSession.Ch
     }
 
     private void recheckCurrentPageUnread() {
+        ChatMessagesFragment f = getCurrentMessagesFragment();
+        if (f != null)
+            f.recheckUnread();
+    }
+
+    public void clearCurrentChannelHistory() {
+        ChatMessagesFragment f = getCurrentMessagesFragment();
+        if (f != null)
+            f.clearChannelHistory();
+    }
+
+    private ChatMessagesFragment getCurrentMessagesFragment() {
         int pos = mViewPager.getCurrentItem();
         long itemId = mSectionsPagerAdapter.getItemId(pos);
         String tag = "android:switcher:" + mViewPager.getId() + ":" + itemId;
         Fragment f = getChildFragmentManager().findFragmentByTag(tag);
-        if (f instanceof ChatMessagesFragment)
-            ((ChatMessagesFragment) f).recheckUnread();
+        return f instanceof ChatMessagesFragment ? (ChatMessagesFragment) f : null;
     }
 
     public ChatFragmentSendMessageHelper getSendMessageHelper() {

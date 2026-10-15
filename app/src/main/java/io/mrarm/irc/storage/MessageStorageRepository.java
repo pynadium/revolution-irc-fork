@@ -257,6 +257,15 @@ public class MessageStorageRepository {
         compactUnlocked();
     }
 
+    public void deleteLogsForChannel(UUID serverId, String channel) {
+        synchronized (maintenanceLock) {
+            db.runInTransaction(() -> dao.replaceDataByChannel(serverId, channel));
+
+            db.runInTransaction(() -> dao.deleteByChannel(serverId, channel));
+        }
+        compactUnlocked();
+    }
+
     public void deleteAllLogs() {
         synchronized (maintenanceLock) {
             db.runInTransaction(dao::replaceAll);

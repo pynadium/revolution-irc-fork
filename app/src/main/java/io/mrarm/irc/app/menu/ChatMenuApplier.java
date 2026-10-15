@@ -18,6 +18,7 @@ public class ChatMenuApplier {
         hasChanges |= setVisible(menu, R.id.action_members, state.showMembers);
         hasChanges |= setVisible(menu, R.id.action_format, state.showFormat);
         hasChanges |= setVisible(menu, R.id.action_dcc_send, state.showDccSend);
+        hasChanges |= setVisible(menu, R.id.action_clear_history, state.showClearHistory);
 
         MenuItem partItem = menu.findItem(R.id.action_part_channel);
 
@@ -41,4 +42,4 @@ public class ChatMenuApplier {
         }
         return false;
     }
-}
+}

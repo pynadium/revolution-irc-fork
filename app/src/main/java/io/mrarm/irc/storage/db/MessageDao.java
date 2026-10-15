@@ -142,6 +142,10 @@ public interface MessageDao {
     @Query("DELETE FROM messages_logs WHERE serverId = :serverId")
     void deleteByServer(UUID serverId);
 
+    // NOCASE: DM rows written before the lowercase-channel fix keep the contact's original casing
+    @Query("DELETE FROM messages_logs WHERE serverId = :serverId AND channel = :channel COLLATE NOCASE")
+    void deleteByChannel(UUID serverId, String channel);
+
     @Query("DELETE FROM messages_logs")
     void deleteAll();
 
@@ -156,6 +160,18 @@ public interface MessageDao {
             WHERE serverId = :serverId;
             """)
     void replaceDataByServer(UUID serverId);
+
+    // Unlike the other replaceData* queries, `channel` is kept so deleteByChannel can still match the rows
+    @Query("""
+            UPDATE messages_logs
+            SET
+                text = NULL,
+                sender = NULL,
+                timestamp = 0,
+                extra_json = NULL
+            WHERE serverId = :serverId AND channel = :channel COLLATE NOCASE;
+            """)
+    void replaceDataByChannel(UUID serverId, String channel);
 
     @Query("""
             UPDATE messages_logs

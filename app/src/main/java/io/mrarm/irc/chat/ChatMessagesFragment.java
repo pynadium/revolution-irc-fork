@@ -18,6 +18,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
@@ -51,6 +52,7 @@ import io.mrarm.irc.config.SettingsHelper;
 import io.mrarm.irc.config.UiSettingChangeCallback;
 import io.mrarm.irc.connection.ServerConnectionManager;
 import io.mrarm.irc.connection.ServerConnectionSession;
+import io.mrarm.irc.infrastructure.threading.AppAsyncExecutor;
 import io.mrarm.irc.job.RemoveDataTask;
 import io.mrarm.irc.message.MessageBus;
 import io.mrarm.irc.protocol.ChannelInfoListener;
@@ -830,6 +832,22 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
                 null,                   // deleteServerLogs
                 mRoomRepo, null                    // listener (optional)
         );
+    }
+
+
+    public void clearChannelHistory() {
+        if (mChannelName == null)
+            return;
+
+        Context appContext = requireContext().getApplicationContext();
+        UUID serverId = mConnection.getUUID();
+        String channel = mChannelName;
+
+        AppAsyncExecutor.io(() -> mRoomRepo.deleteLogsForChannel(serverId, channel), () -> {
+            if (isAdded() && mRecyclerView != null)
+                reloadMessages(null);
+            Toast.makeText(appContext, R.string.action_clear_history_done, Toast.LENGTH_SHORT).show();
+        });
     }
 
 

@@ -289,6 +289,12 @@ public class MainActivity extends ThemedActivity implements IRCApplication.ExitC
             }
 
             @Override
+            public void clearCurrentChannelHistory() {
+                Log.i(TAG, "setupChatActions(): action -> clear Current Channel History");
+                MainActivity.this.clearCurrentChannelHistory();
+            }
+
+            @Override
             public void closeAllPrivateMessages() {
                 Log.i(TAG, "setupChatActions(): action -> close all private messages");
                 MainActivity.this.closeAllPrivateMessages();
@@ -730,6 +736,22 @@ public class MainActivity extends ThemedActivity implements IRCApplication.ExitC
         String channel = ((ChatFragment) getCurrentFragment()).getCurrentChannel();
         if (channel != null)
             api.leaveChannel(channel, AppSettings.getDefaultPartMessage(), null, null);
+    }
+
+    private void clearCurrentChannelHistory() {
+        ChatFragment chat = (ChatFragment) getCurrentFragment();
+        String channel = chat.getCurrentChannel();
+        if (channel == null)
+            return;
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(R.string.action_delete_confirm_title)
+                .setMessage(getString(R.string.action_clear_history_confirm, channel))
+                .setPositiveButton(R.string.action_delete,
+                        (DialogInterface d, int which) -> chat.clearCurrentChannelHistory())
+                .setNegativeButton(R.string.action_cancel, null)
+                .create();
+        dialog.show();
+        setFragmentDialog(dialog);
     }
 
     private void closeAllPrivateMessages() {

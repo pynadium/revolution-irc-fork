@@ -50,6 +50,8 @@ public class ChatMenuStateResolver {
             state.partTitleRes = R.string.action_part_channel;
         }
 
+        state.showClearHistory = state.showPart;
+
         // DCC visibility
         state.showDccSend =
                 ChatSettings.isDccSendVisible()
@@ -58,4 +60,4 @@ public class ChatMenuStateResolver {
 
         return state;
     }
-}
+}
