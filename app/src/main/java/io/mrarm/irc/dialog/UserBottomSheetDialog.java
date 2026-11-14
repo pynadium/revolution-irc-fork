@@ -23,9 +23,9 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import io.mrarm.irc.R;
-import io.mrarm.irc.chatlib.ChatApi;
-import io.mrarm.irc.chatlib.dto.WhoisInfo;
 import io.mrarm.irc.connection.ServerConnectionSession;
+import io.mrarm.irc.protocol.ChatApi;
+import io.mrarm.irc.protocol.dto.WhoisInfo;
 import io.mrarm.irc.util.AdvancedDividerItemDecoration;
 
 public class UserBottomSheetDialog {

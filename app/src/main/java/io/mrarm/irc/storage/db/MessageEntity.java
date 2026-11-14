@@ -15,7 +15,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.UUID;
 
-import io.mrarm.irc.chatlib.dto.MessageInfo;
+import io.mrarm.irc.protocol.dto.MessageInfo;
 
 @Entity(
         tableName = "messages_logs",

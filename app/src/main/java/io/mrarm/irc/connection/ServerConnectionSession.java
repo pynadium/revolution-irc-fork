@@ -9,20 +9,22 @@ import java.util.UUID;
 import io.mrarm.irc.NotificationManager;
 import io.mrarm.irc.UserOverrideTrustManager;
 import io.mrarm.irc.chat.ChatUIData;
-import io.mrarm.irc.chatlib.ChannelListListener;
-import io.mrarm.irc.chatlib.ChatApi;
-import io.mrarm.irc.chatlib.NickUnavailableException;
-import io.mrarm.irc.chatlib.dto.MessageId;
-import io.mrarm.irc.chatlib.irc.IRCConnection;
-import io.mrarm.irc.chatlib.irc.IRCConnectionRequest;
-import io.mrarm.irc.chatlib.irc.ServerConnectionApi;
-import io.mrarm.irc.chatlib.irc.ServerConnectionData;
-import io.mrarm.irc.chatlib.irc.cap.SASLOptions;
 import io.mrarm.irc.config.AppSettings;
 import io.mrarm.irc.config.ServerConfigData;
+import io.mrarm.irc.conversation.ConversationRepository;
 import io.mrarm.irc.infrastructure.threading.DelayScheduler;
 import io.mrarm.irc.message.MessagePipeline;
 import io.mrarm.irc.message.MessageSink;
+import io.mrarm.irc.protocol.ChannelListListener;
+import io.mrarm.irc.protocol.ChatApi;
+import io.mrarm.irc.protocol.NickUnavailableException;
+import io.mrarm.irc.protocol.NoSuchChannelException;
+import io.mrarm.irc.protocol.dto.MessageId;
+import io.mrarm.irc.protocol.irc.IRCConnection;
+import io.mrarm.irc.protocol.irc.IRCConnectionRequest;
+import io.mrarm.irc.protocol.irc.ServerConnectionApi;
+import io.mrarm.irc.protocol.irc.ServerConnectionData;
+import io.mrarm.irc.protocol.irc.cap.SASLOptions;
 import io.mrarm.irc.util.UserAutoRunCommandHelper;
 
 /**
@@ -86,6 +88,7 @@ public class ServerConnectionSession {
     private final List<ChannelListChangeListener> mChannelsListeners = new ArrayList<>();
     private int mCurrentReconnectAttempt = -1;
     private final ChatUIData mChatUIData = new ChatUIData();
+    private ConversationRepository mConversationRepository;
 
     private static final String TAG = "SERVER CONNECTION SESSION";
 
@@ -466,6 +469,20 @@ public class ServerConnectionSession {
         }
     }
 
+    // Cosmetic-only original-case form of `channel` (which stays canonical/lowercase-for-DM
+    // for storage and lookups - see ChannelData.getDisplayName()). Falls back to `channel`
+    // itself if the channel isn't currently joined.
+    public String getChannelDisplayName(String channel) {
+        ChatApi api = getApiInstance();
+        if (!(api instanceof ServerConnectionApi))
+            return channel;
+        try {
+            return ((ServerConnectionApi) api).getChannelData(channel).getDisplayName();
+        } catch (NoSuchChannelException e) {
+            return channel;
+        }
+    }
+
     public boolean hasChannel(String channel) {
         synchronized (this) {
             for (String c : mChannels) {
@@ -553,6 +570,14 @@ public class ServerConnectionSession {
             return;
         this.connect();
     };
+
+    public ConversationRepository getmConversationRepository() {
+        return mConversationRepository;
+    }
+
+    public void setmConversationRepository(ConversationRepository repo) {
+        this.mConversationRepository = repo;
+    }
 
     public interface InfoChangeListener {
         void onConnectionInfoChanged(ServerConnectionSession connection);

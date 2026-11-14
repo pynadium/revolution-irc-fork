@@ -85,8 +85,11 @@ public class ChannelSearchDialog extends SearchDialog {
             @Override
             public void bind(Pair<ServerConnectionSession, String> item) {
                 String name = item.first.getName();
-                String channel = item.second;
-                int iof = channel.indexOf(mHighlightQuery);
+                // Match position against the canonical channel string (same one filterWithQuery()
+                // matched against), not the display string - casing may differ between the two,
+                // which would make indexOf() miss the match against the display string.
+                int iof = item.second.indexOf(mHighlightQuery);
+                String channel = item.first.getChannelDisplayName(item.second);
                 SpannableString str = new SpannableString(channel + "  " + name);
                 str.setSpan(new ForegroundColorSpan(mHighlightTextColor), iof, iof + mHighlightQuery.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                 str.setSpan(new ForegroundColorSpan(mSecondaryTextColor), channel.length() + 2, channel.length() + 2 + name.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);

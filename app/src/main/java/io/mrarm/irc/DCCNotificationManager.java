@@ -17,9 +17,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import io.mrarm.irc.chatlib.irc.dcc.DCCClient;
-import io.mrarm.irc.chatlib.irc.dcc.DCCServer;
-import io.mrarm.irc.chatlib.irc.dcc.DCCServerManager;
+import io.mrarm.irc.protocol.irc.dcc.DCCClient;
+import io.mrarm.irc.protocol.irc.dcc.DCCServer;
+import io.mrarm.irc.protocol.irc.dcc.DCCServerManager;
 import io.mrarm.irc.util.FormatUtils;
 
 public class DCCNotificationManager implements DCCServerManager.UploadListener,

@@ -17,8 +17,8 @@ import java.util.Date;
 import java.util.List;
 
 import io.mrarm.irc.R;
-import io.mrarm.irc.chatlib.dto.NickWithPrefix;
 import io.mrarm.irc.connection.ServerConnectionSession;
+import io.mrarm.irc.protocol.dto.NickWithPrefix;
 import io.mrarm.irc.util.IRCColorUtils;
 import io.mrarm.irc.util.LinkHelper;
 import io.mrarm.irc.util.SpannableStringHelper;

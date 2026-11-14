@@ -1,8 +1,8 @@
 package io.mrarm.irc.message;
 
-import io.mrarm.irc.chatlib.dto.MessageId;
-import io.mrarm.irc.chatlib.dto.MessageInfo;
-import io.mrarm.irc.chatlib.message.MessageListener;
+import io.mrarm.irc.protocol.dto.MessageId;
+import io.mrarm.irc.protocol.dto.MessageInfo;
+import io.mrarm.irc.protocol.message.MessageListener;
 
 public interface MessageBus {
     /**

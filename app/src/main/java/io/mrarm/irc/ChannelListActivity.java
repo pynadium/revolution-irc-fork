@@ -31,10 +31,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.UUID;
 
-import io.mrarm.irc.chatlib.dto.ChannelList;
 import io.mrarm.irc.connection.ServerConnectionManager;
 import io.mrarm.irc.connection.ServerConnectionSession;
 import io.mrarm.irc.infrastructure.threading.AppAsyncExecutor;
+import io.mrarm.irc.protocol.dto.ChannelList;
 import io.mrarm.irc.view.ProgressBar;
 import io.mrarm.irc.view.RecyclerViewScrollbar;
 

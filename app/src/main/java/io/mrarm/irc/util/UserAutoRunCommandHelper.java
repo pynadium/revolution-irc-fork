@@ -21,9 +21,9 @@ import java.util.Map;
 
 import io.mrarm.irc.MainActivity;
 import io.mrarm.irc.R;
-import io.mrarm.irc.chatlib.irc.IRCConnection;
 import io.mrarm.irc.config.CommandAliasManager;
 import io.mrarm.irc.connection.ServerConnectionSession;
+import io.mrarm.irc.protocol.irc.IRCConnection;
 
 public class UserAutoRunCommandHelper implements ServerConnectionSession.ChannelListChangeListener {
 

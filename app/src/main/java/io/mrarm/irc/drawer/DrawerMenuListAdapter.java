@@ -430,7 +430,7 @@ public class DrawerMenuListAdapter extends RecyclerView.Adapter<RecyclerView.Vie
             List<String> channels = info.getChannels();
             if (channelIndex >= 0 && channelIndex < channels.size()) {
                 mChannel = channels.get(channelIndex);
-                mName.setText(mChannel);
+                mName.setText(info.getChannelDisplayName(mChannel));
             } else {
                 mChannel = null;
                 mName.setText(R.string.tab_server);

@@ -1,6 +1,6 @@
 package io.mrarm.irc.message;
 
-import io.mrarm.irc.chatlib.dto.MessageInfo;
+import io.mrarm.irc.protocol.dto.MessageInfo;
 
 /**
  * Orchestrates live message flow:

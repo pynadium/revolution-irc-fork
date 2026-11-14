@@ -30,18 +30,18 @@ import java.util.Set;
 
 import io.mrarm.irc.MessageFormatSettingsActivity;
 import io.mrarm.irc.R;
-import io.mrarm.irc.chatlib.dto.ChannelModeMessageInfo;
-import io.mrarm.irc.chatlib.dto.HostInfoMessageInfo;
-import io.mrarm.irc.chatlib.dto.KickMessageInfo;
-import io.mrarm.irc.chatlib.dto.MessageInfo;
-import io.mrarm.irc.chatlib.dto.MessageSenderInfo;
-import io.mrarm.irc.chatlib.dto.NickChangeMessageInfo;
-import io.mrarm.irc.chatlib.dto.NickWithPrefix;
-import io.mrarm.irc.chatlib.dto.StatusMessageInfo;
-import io.mrarm.irc.chatlib.dto.TopicWhoTimeMessageInfo;
-import io.mrarm.irc.chatlib.dto.WhoisStatusMessageInfo;
 import io.mrarm.irc.config.MessageFormatSettings;
 import io.mrarm.irc.config.SettingsHelper;
+import io.mrarm.irc.protocol.dto.ChannelModeMessageInfo;
+import io.mrarm.irc.protocol.dto.HostInfoMessageInfo;
+import io.mrarm.irc.protocol.dto.KickMessageInfo;
+import io.mrarm.irc.protocol.dto.MessageInfo;
+import io.mrarm.irc.protocol.dto.MessageSenderInfo;
+import io.mrarm.irc.protocol.dto.NickChangeMessageInfo;
+import io.mrarm.irc.protocol.dto.NickWithPrefix;
+import io.mrarm.irc.protocol.dto.StatusMessageInfo;
+import io.mrarm.irc.protocol.dto.TopicWhoTimeMessageInfo;
+import io.mrarm.irc.protocol.dto.WhoisStatusMessageInfo;
 
 public class MessageBuilder {
 

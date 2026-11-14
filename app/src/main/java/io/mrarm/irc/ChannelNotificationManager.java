@@ -25,13 +25,13 @@ import java.util.List;
 import java.util.UUID;
 
 import io.mrarm.irc.chat.SendMessageHelper;
-import io.mrarm.irc.chatlib.dto.MessageId;
-import io.mrarm.irc.chatlib.dto.MessageInfo;
 import io.mrarm.irc.config.NotificationRule;
 import io.mrarm.irc.config.NotificationRuleManager;
 import io.mrarm.irc.connection.ServerConnectionManager;
 import io.mrarm.irc.connection.ServerConnectionSession;
 import io.mrarm.irc.infrastructure.threading.AppAsyncExecutor;
+import io.mrarm.irc.protocol.dto.MessageId;
+import io.mrarm.irc.protocol.dto.MessageInfo;
 import io.mrarm.irc.storage.ConversationStateRepository;
 import io.mrarm.irc.storage.db.ChatLogDatabase;
 import io.mrarm.irc.storage.db.ConversationStateEntity;

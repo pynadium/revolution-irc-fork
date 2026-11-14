@@ -121,7 +121,7 @@ public class ChatPagerAdapter extends FragmentPagerAdapter {
     public CharSequence getPageTitle(int position) {
         if (position == 0)
             return context.getString(R.string.tab_server);
-        return channels.get(position - 1);
+        return connectionInfo.getChannelDisplayName(channels.get(position - 1));
     }
 
     public String getChannel(int position) {
@@ -131,7 +131,15 @@ public class ChatPagerAdapter extends FragmentPagerAdapter {
     }
 
     public int findChannel(String channel) {
-        return channels.indexOf(channel) + 1;
+        // Case-insensitive: DM channels are canonicalized to lowercase (see
+        // ServerConnectionData.onChannelJoined), but callers (WHOIS dialog, notification
+        // taps, etc) may pass whatever casing they last observed for that nick. Matches
+        // the same equalsIgnoreCase convention ServerConnectionSession.hasChannel() uses.
+        for (int i = 0; i < channels.size(); i++) {
+            if (channels.get(i).equalsIgnoreCase(channel))
+                return i + 1;
+        }
+        return 0;
     }
 
 }

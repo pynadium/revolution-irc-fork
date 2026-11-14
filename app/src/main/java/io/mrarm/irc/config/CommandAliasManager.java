@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import io.mrarm.irc.chatlib.irc.ServerConnectionData;
+import io.mrarm.irc.protocol.irc.ServerConnectionData;
 import io.mrarm.irc.util.CommandAliasSyntaxParser;
 import io.mrarm.irc.util.SimpleTextVariableList;
 

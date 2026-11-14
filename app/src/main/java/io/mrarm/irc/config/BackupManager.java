@@ -3,6 +3,7 @@ package io.mrarm.irc.config;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.database.sqlite.SQLiteDatabase;
 import android.preference.PreferenceManager;
 import android.util.Log;
 
@@ -31,8 +32,8 @@ import java.util.Set;
 import java.util.UUID;
 
 import io.mrarm.irc.connection.ServerConnectionManager;
-import io.mrarm.irc.connection.ServerConnectionSession;
 import io.mrarm.irc.setting.ListWithCustomSetting;
+import io.mrarm.irc.storage.MessageStorageRepository;
 import io.mrarm.irc.storage.db.ChatLogDatabase;
 import io.mrarm.irc.util.theme.ThemeInfo;
 import io.mrarm.irc.util.theme.ThemeManager;
@@ -64,19 +65,14 @@ public class BackupManager {
      * - Custom themes <br>
      * - chatlogs.db (Room database, authoritative message store) <br>
      * <p>
-     * IMPORTANT: <br>
-     * - This method assumes a COLD backup model. <br>
-     * - Callers MUST ensure: <br>
-     * - No active IRC connections <br>
-     * - No ongoing message writes <br>
-     * - Room database is fully closed <br>
+     * HOT backup: IRC connections stay up and Room stays open. chatlogs.db is captured through
+     * {@link MessageStorageRepository#snapshotTo(File)}, a consistent copy taken under a write lock;
+     * messages committed after the snapshot are not part of the backup.
      * <p>
-     * The backup is intended to be restored atomically.
+     * Must be called off the main thread.
      */
     public static void createBackup(Context context, File file, String password) throws IOException {
         try {
-            quiesceStorage(context, false);
-
             // ------------------------------------------------------------
             // 1) Initialize ZIP file and compression/encryption parameters
             // ------------------------------------------------------------
@@ -161,12 +157,15 @@ public class BackupManager {
             // ------------------------------------------------------------
             // 8) Backup chatlogs.db (Room database)
             // ------------------------------------------------------------
-            // This is the authoritative message store.
-            // DB must be closed and quiescent before copying.
-            File chatlogDb = context.getDatabasePath(CHATLOG_DB_PATH);
-            if (chatlogDb.exists()) {
+            // This is the authoritative message store. A consistent snapshot is taken while Room
+            // stays open; the snapshot holds chat logs in plain text, so it is always deleted.
+            File chatlogSnapshot = new File(context.getCacheDir(), "chatlogs-backup.db");
+            try {
+                MessageStorageRepository.getInstance(context).snapshotTo(chatlogSnapshot);
                 params.setFileNameInZip(CHATLOG_DB_PATH);
-                zipFile.addFile(chatlogDb, params);
+                zipFile.addFile(chatlogSnapshot, params);
+            } finally {
+                chatlogSnapshot.delete();
             }
 
         } catch (ZipException e) {
@@ -210,18 +209,16 @@ public class BackupManager {
      * - Custom themes <br>
      * - chatlogs.db (Room database, authoritative message store)
      * <p>
-     * IMPORTANT RESTORE CONTRACT: <br>
-     * - Restore is a COLD operation. <br>
-     * - All IRC connections MUST be disconnected. <br>
-     * - No message writes must be occurring. <br>
-     * - Room database must not hold the DB open when chatlogs.db is replaced. <br>
+     * COLD restore: all IRC connections are disconnected and removed, and Room is closed and
+     * blocked from reopening ({@link ChatLogDatabase#beginRestore()}) until the restore ends, so
+     * nothing can open chatlogs.db while it is being replaced. Room reopens lazily afterwards.
      * <p>
      * The restore process is destructive and replaces current state.
      */
     public static void restoreBackup(Context context, File file, String password) throws IOException {
         try {
 
-            quiesceStorage(context, true);
+            quiesceForRestore(context);
 
             // ------------------------------------------------------------
             // 1) Open ZIP backup (optionally with password)
@@ -349,49 +346,44 @@ public class BackupManager {
             // ------------------------------------------------------------
             // 9) Restore chatlogs.db (Room database)
             // ------------------------------------------------------------
-            // chatlogs.db is the authoritative message store.
-            // It replaces all previous message data.
-            File chatlogDb = context.getDatabasePath(CHATLOG_DB_PATH);
+            // chatlogs.db is the authoritative message store and replaces all previous message
+            // data. Room is closed and cannot reopen until endRestore() (see quiesceForRestore).
+            // Backups made before chat logs existed have no chatlogs.db: the current logs are kept.
+            if (zipFile.getFileHeader(CHATLOG_DB_PATH) != null) {
+                File chatlogDb = context.getDatabasePath(CHATLOG_DB_PATH);
 
-            // NOTE:
-            // Room must not be holding the database open here.
-            // Ideally, Room should be closed BEFORE this step.
-            if (chatlogDb.exists()) {
-                chatlogDb.delete();
+                // Deletes chatlogs.db together with its -wal, -shm and -journal files: a stale
+                // -wal left by the old database would otherwise be applied to the restored one.
+                SQLiteDatabase.deleteDatabase(chatlogDb);
+
+                zipFile.extractFile(
+                        CHATLOG_DB_PATH,
+                        chatlogDb.getParentFile().getAbsolutePath(),
+                        null,
+                        chatlogDb.getName()
+                );
             }
-
-            zipFile.extractFile(
-                    CHATLOG_DB_PATH,
-                    chatlogDb.getParentFile().getAbsolutePath(),
-                    null,
-                    chatlogDb.getName()
-            );
-
 
         } catch (ZipException e) {
             throw new IOException("Invalid or incomplete backup", e);
+        } finally {
+            // Room reopens lazily on the next access, on the restored file
+            ChatLogDatabase.endRestore();
         }
     }
 
-    private static void quiesceStorage(Context context, boolean removeConnections) {
+    private static void quiesceForRestore(Context context) {
         ServerConnectionManager scm =
                 ServerConnectionManager.getInstance(context);
 
         if (scm != null) {
-            if (removeConnections) {
-                // Destructive shutdown (restore)
-                scm.disconnectAndRemoveAllConnections(true);
-            } else {
-                // Non-destructive shutdown (backup)
-                for (ServerConnectionSession conn : scm.getConnections()) {
-                    conn.disconnect();
-                }
-            }
+            // Destructive shutdown: the restore replaces all servers
+            scm.disconnectAndRemoveAllConnections(true);
         }
 
-        // After all message producers are stopped,
-        // close Room completely
-        ChatLogDatabase.closeInstance();
+        // After all message producers are stopped, close Room and keep it closed
+        // until restoreBackup() calls endRestore()
+        ChatLogDatabase.beginRestore();
     }
 
     private static InputStream exportPreferencesToJson(Context context) {

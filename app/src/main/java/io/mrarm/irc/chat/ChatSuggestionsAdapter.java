@@ -12,10 +12,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 import io.mrarm.irc.R;
-import io.mrarm.irc.chatlib.dto.ModeList;
-import io.mrarm.irc.chatlib.dto.NickWithPrefix;
-import io.mrarm.irc.chatlib.irc.ServerConnectionApi;
 import io.mrarm.irc.connection.ServerConnectionSession;
+import io.mrarm.irc.protocol.dto.ModeList;
+import io.mrarm.irc.protocol.dto.NickWithPrefix;
+import io.mrarm.irc.protocol.irc.ServerConnectionApi;
 import io.mrarm.irc.util.SelectableRecyclerViewAdapter;
 
 public class ChatSuggestionsAdapter extends SelectableRecyclerViewAdapter<ChatSuggestionsAdapter.ItemHolder> implements Filterable {

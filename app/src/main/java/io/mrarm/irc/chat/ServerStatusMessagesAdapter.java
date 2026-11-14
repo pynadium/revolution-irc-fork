@@ -17,12 +17,12 @@ import java.util.HashSet;
 import java.util.Set;
 
 import io.mrarm.irc.R;
-import io.mrarm.irc.chatlib.dto.StatusMessageInfo;
-import io.mrarm.irc.chatlib.dto.StatusMessageList;
-import io.mrarm.irc.chatlib.dto.WhoisStatusMessageInfo;
 import io.mrarm.irc.connection.ServerConnectionSession;
 import io.mrarm.irc.dialog.DialogHost;
 import io.mrarm.irc.dialog.UserBottomSheetDialog;
+import io.mrarm.irc.protocol.dto.StatusMessageInfo;
+import io.mrarm.irc.protocol.dto.StatusMessageList;
+import io.mrarm.irc.protocol.dto.WhoisStatusMessageInfo;
 import io.mrarm.irc.util.AlignToPointSpan;
 import io.mrarm.irc.util.IRCColorUtils;
 import io.mrarm.irc.util.MessageBuilder;

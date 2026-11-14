@@ -14,8 +14,8 @@ import java.io.FileInputStream;
 import java.io.IOException;
 
 import io.mrarm.irc.chat.ChatFragment;
-import io.mrarm.irc.chatlib.irc.dcc.DCCServer;
-import io.mrarm.irc.chatlib.irc.dcc.DCCUtils;
+import io.mrarm.irc.protocol.irc.dcc.DCCServer;
+import io.mrarm.irc.protocol.irc.dcc.DCCUtils;
 
 public class DCCCoordinator {
     public interface Host {

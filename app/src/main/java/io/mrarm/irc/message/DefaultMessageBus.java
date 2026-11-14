@@ -5,9 +5,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import io.mrarm.irc.chatlib.dto.MessageId;
-import io.mrarm.irc.chatlib.dto.MessageInfo;
-import io.mrarm.irc.chatlib.message.MessageListener;
+import io.mrarm.irc.protocol.dto.MessageId;
+import io.mrarm.irc.protocol.dto.MessageInfo;
+import io.mrarm.irc.protocol.message.MessageListener;
 
 public class DefaultMessageBus implements MessageBus {
     private final Map<String, List<MessageListener>> channelListeners = new HashMap<>();

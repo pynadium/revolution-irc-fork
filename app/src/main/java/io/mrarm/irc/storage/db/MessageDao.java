@@ -62,6 +62,78 @@ public interface MessageDao {
     MessageEntity findById(long id);
 
     /**
+     * Log viewer: distinct filter values
+     */
+    @Query("SELECT DISTINCT serverId FROM messages_logs")
+    List<UUID> getDistinctServerIds();
+
+    // `channel` is the grouping/identity key - for DMs it's intentionally forced to lowercase
+    // by ServerConnectionData.onChannelJoined for any conversation active after that fix, so
+    // it no longer carries the contact's real casing. The real casing only survives in `sender`
+    // on INCOMING rows (sender == the contact, case-preserved). MessageStorageRepository uses
+    // this id to look up that row's `sender`/`channel` and pick whichever reflects the real nick.
+    @Query("""
+                SELECT MAX(id) FROM messages_logs
+                WHERE serverId = :serverId
+                GROUP BY channel COLLATE NOCASE
+            """)
+    List<Long> getMostRecentIdPerChannelGroup(UUID serverId);
+
+    @Query("SELECT * FROM messages_logs WHERE id IN (:ids)")
+    List<MessageEntity> findByIds(List<Long> ids);
+
+    // Same "most recent real casing" pick as getDistinctChannels above, instead of MIN(sender).
+    @Query("""
+                SELECT sender FROM messages_logs
+                WHERE serverId = :serverId
+                AND (:channel IS NULL OR channel = :channel COLLATE NOCASE)
+                AND sender IS NOT NULL
+                AND id IN (
+                    SELECT MAX(id) FROM messages_logs
+                    WHERE serverId = :serverId
+                    AND (:channel IS NULL OR channel = :channel COLLATE NOCASE)
+                    AND sender IS NOT NULL
+                    GROUP BY sender COLLATE NOCASE
+                )
+                ORDER BY sender COLLATE NOCASE
+            """)
+    List<String> getDistinctSenders(UUID serverId, String channel);
+
+    /**
+     * Log viewer: filtered scroll-up paging (channel/sender optional, matched case-insensitively
+     * for the same reason as the distinct-value queries above)
+     */
+    @Query("""
+                SELECT * FROM messages_logs
+                WHERE serverId = :serverId
+                AND (:channel IS NULL OR channel = :channel COLLATE NOCASE)
+                AND (:sender IS NULL OR sender = :sender COLLATE NOCASE)
+                AND id < :beforeId
+                AND type NOT IN (:excludeTypes)
+                ORDER BY id DESC
+                LIMIT :limit
+            """)
+    List<MessageEntity> loadFilteredBefore(UUID serverId, String channel, String sender,
+                                            long beforeId, int limit, List<Integer> excludeTypes);
+
+    /**
+     * Log viewer export: same filter as loadFilteredBefore, but oldest first, so the export can
+     * be written batch by batch without keeping the whole history in memory
+     */
+    @Query("""
+                SELECT * FROM messages_logs
+                WHERE serverId = :serverId
+                AND (:channel IS NULL OR channel = :channel COLLATE NOCASE)
+                AND (:sender IS NULL OR sender = :sender COLLATE NOCASE)
+                AND id > :afterId
+                AND type NOT IN (:excludeTypes)
+                ORDER BY id ASC
+                LIMIT :limit
+            """)
+    List<MessageEntity> loadFilteredAfter(UUID serverId, String channel, String sender,
+                                           long afterId, int limit, List<Integer> excludeTypes);
+
+    /**
      * Stats
      */
     @Query("SELECT SUM(aprox_row_size) FROM messages_logs")
@@ -87,31 +159,12 @@ public interface MessageDao {
     @Query("DELETE FROM messages_logs WHERE serverId = :serverId")
     void deleteByServer(UUID serverId);
 
+    // NOCASE: DM rows written before the lowercase-channel fix keep the contact's original casing
+    @Query("DELETE FROM messages_logs WHERE serverId = :serverId AND channel = :channel COLLATE NOCASE")
+    void deleteByChannel(UUID serverId, String channel);
+
     @Query("DELETE FROM messages_logs")
     void deleteAll();
-
-    @Query("""
-            UPDATE messages_logs
-            SET
-                text = NULL,
-                sender = NULL,
-                channel = 'null',
-                timestamp = 0,
-                extra_json = NULL
-            WHERE serverId = :serverId;
-            """)
-    void replaceDataByServer(UUID serverId);
-
-    @Query("""
-            UPDATE messages_logs
-            SET
-                text = NULL,
-                sender = NULL,
-                channel = 'null',
-                timestamp = 0,
-                extra_json = NULL
-            """)
-    void replaceAll();
 
     @Query("""
                 SELECT id,
@@ -160,23 +213,10 @@ public interface MessageDao {
     int deleteByIds(List<Long> ids);
 
     @Query("""
-            SELECT id FROM messages_logs 
-            WHERE dedupe_key = :dedupeKey 
-            LIMIT 1 
+            SELECT id FROM messages_logs
+            WHERE dedupe_key = :dedupeKey
+            LIMIT 1
             """
     )
     long findIdByDedupeKey(String dedupeKey);
-
-
-    @Query("""
-            UPDATE messages_logs
-            SET
-                text = NULL,
-                sender = NULL,
-                channel = 'null',
-                timestamp = 0,
-                extra_json = NULL
-            WHERE id in (:ids);
-            """)
-    int replaceDataByIds(List<Long> ids);
 }
