@@ -41,6 +41,13 @@ public class MessageStorageHelper {
                 type = t;
         }
         JsonObject o = gson.fromJson(extraData, JsonObject.class);
+        // Types below need extra_json. Rows without it (e.g. half-wiped by the old delete code)
+        // degrade to a plain message instead of throwing a NullPointerException.
+        if (o == null && (type == MessageInfo.MessageType.NICK_CHANGE
+                || type == MessageInfo.MessageType.KICK
+                || type == MessageInfo.MessageType.MODE
+                || type == MessageInfo.MessageType.TOPIC_WHOTIME))
+            type = MessageInfo.MessageType.NORMAL;
         // TODO: These should be moved to builders as well?
         if (type == MessageInfo.MessageType.NICK_CHANGE)
             return new NickChangeMessageInfo(sender, date, o.get(PROP_NICKCHANGE_NEWNICK).getAsString());

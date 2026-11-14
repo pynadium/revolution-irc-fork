@@ -109,8 +109,9 @@ public class MessageStorageRepository {
     public void loadRecentAsync(UUID serverId, String channel, int limit,
                                 List<Integer> excludeTypes,
                                 Consumer<MessageList> uiCallback) {
+        // AppAsyncExecutor delivers null when the query throws: hand the UI an empty list instead
         AppAsyncExecutor.io(() -> toMessageListFromRoom(dao.loadRecent(serverId, channel, limit, excludeTypes)),
-                uiCallback
+                list -> uiCallback.accept(list != null ? list : toMessageListFromRoom(null))
         );
     }
 
@@ -209,6 +210,10 @@ public class MessageStorageRepository {
     }
 
     public MessageList toMessageListFromRoom(List<MessageEntity> entities) {
+        // null = the async query failed (AppAsyncExecutor delivers null on error): treat as no rows
+        if (entities == null)
+            entities = new ArrayList<>();
+
         List<Pair<MessageInfo, MessageId>> pairs = new ArrayList<>(entities.size());
 
         for (MessageEntity e : entities) {
