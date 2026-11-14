@@ -24,6 +24,12 @@ android {
         buildFeatures {
             buildConfig = true
         }
+        javaCompileOptions {
+            annotationProcessorOptions {
+                // Room schema export: one JSON per database version, used to write and test migrations
+                arguments += ["room.schemaLocation": "$projectDir/schemas".toString()]
+            }
+        }
     }
     java {
         toolchain {

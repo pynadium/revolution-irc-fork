@@ -34,7 +34,8 @@ public abstract class ChatLogDatabase extends RoomDatabase {
                                     ChatLogDatabase.class,
                                     "chatlogs.db"
                             )
-                            .fallbackToDestructiveMigration()
+                            // No destructive fallback: a version bump without a Migration must fail
+                            // loudly instead of silently wiping the user's chat logs.
                             .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
                             .addCallback(new RoomDatabase.Callback() {
                                 @Override
