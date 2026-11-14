@@ -150,41 +150,6 @@ public interface MessageDao {
     void deleteAll();
 
     @Query("""
-            UPDATE messages_logs
-            SET
-                text = NULL,
-                sender = NULL,
-                channel = 'null',
-                timestamp = 0,
-                extra_json = NULL
-            WHERE serverId = :serverId;
-            """)
-    void replaceDataByServer(UUID serverId);
-
-    // Unlike the other replaceData* queries, `channel` is kept so deleteByChannel can still match the rows
-    @Query("""
-            UPDATE messages_logs
-            SET
-                text = NULL,
-                sender = NULL,
-                timestamp = 0,
-                extra_json = NULL
-            WHERE serverId = :serverId AND channel = :channel COLLATE NOCASE;
-            """)
-    void replaceDataByChannel(UUID serverId, String channel);
-
-    @Query("""
-            UPDATE messages_logs
-            SET
-                text = NULL,
-                sender = NULL,
-                channel = 'null',
-                timestamp = 0,
-                extra_json = NULL
-            """)
-    void replaceAll();
-
-    @Query("""
                 SELECT id,
                 aprox_row_size AS aproxRowSize
                 FROM messages_logs
@@ -231,23 +196,10 @@ public interface MessageDao {
     int deleteByIds(List<Long> ids);
 
     @Query("""
-            SELECT id FROM messages_logs 
-            WHERE dedupe_key = :dedupeKey 
-            LIMIT 1 
+            SELECT id FROM messages_logs
+            WHERE dedupe_key = :dedupeKey
+            LIMIT 1
             """
     )
     long findIdByDedupeKey(String dedupeKey);
-
-
-    @Query("""
-            UPDATE messages_logs
-            SET
-                text = NULL,
-                sender = NULL,
-                channel = 'null',
-                timestamp = 0,
-                extra_json = NULL
-            WHERE id in (:ids);
-            """)
-    int replaceDataByIds(List<Long> ids);
 }

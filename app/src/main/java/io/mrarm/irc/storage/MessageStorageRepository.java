@@ -3,14 +3,13 @@ package io.mrarm.irc.storage;
 import static io.mrarm.irc.storage.MessageStorageHelper.deserializeMessage;
 
 import android.content.Context;
+import android.database.Cursor;
 import android.util.Log;
 import android.util.Pair;
 
 import androidx.sqlite.db.SupportSQLiteDatabase;
 
-import java.io.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.io.Writer;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -38,6 +37,10 @@ import io.mrarm.irc.storage.db.MessageEntity;
 import io.mrarm.irc.storage.db.MessageKind;
 
 public class MessageStorageRepository {
+    private static final String TAG = "MessageStorageRepository";
+    private static final int CHECKPOINT_ATTEMPTS = 3;
+    private static final long CHECKPOINT_RETRY_DELAY_MS = 100;
+
     private static volatile MessageStorageRepository INSTANCE;
 
     private final ChatLogDatabase db;
@@ -232,90 +235,97 @@ public class MessageStorageRepository {
 
     public void deleteMessages(List<Long> ids) {
         if (ids == null || ids.isEmpty()) return;
-
-        synchronized (maintenanceLock) {
-            db.runInTransaction(() -> dao.replaceDataByIds(ids));
-
-            db.runInTransaction(() -> {
-                dao.deleteByIds(ids);
-            });
-        }
-
-        compactUnlocked();
+        secureDelete(() -> dao.deleteByIds(ids), false);
     }
 
-
     public void deleteLogsForServer(UUID serverId) {
-        synchronized (maintenanceLock) {
-            db.runInTransaction(() -> dao.replaceDataByServer(serverId));
-
-            db.runInTransaction(() -> {
-                dao.deleteByServer(serverId);
-                conversationStateDao.deleteByServer(serverId);
-            });
-        }
-        compactUnlocked();
+        secureDelete(() -> {
+            dao.deleteByServer(serverId);
+            conversationStateDao.deleteByServer(serverId);
+        }, false);
     }
 
     public void deleteLogsForChannel(UUID serverId, String channel) {
-        synchronized (maintenanceLock) {
-            db.runInTransaction(() -> dao.replaceDataByChannel(serverId, channel));
-
-            db.runInTransaction(() -> dao.deleteByChannel(serverId, channel));
-        }
-        compactUnlocked();
+        secureDelete(() -> {
+            dao.deleteByChannel(serverId, channel);
+            conversationStateDao.deleteByChannel(serverId, channel);
+        }, false);
     }
 
     public void deleteAllLogs() {
+        secureDelete(() -> {
+            dao.deleteAll();
+            conversationStateDao.clear();
+        }, true);
+    }
+
+    /*
+     * Secure wipe of deleted chat logs (privacy feature).
+     *
+     * With secure_delete ON, SQLite overwrites the deleted rows and the freed pages with zeros
+     * when it writes those pages. In WAL mode the zeroed pages first land in -wal; the TRUNCATE
+     * checkpoint copies them over the old content in chatlogs.db and truncates -wal to 0 bytes.
+     *
+     * Rules:
+     * - secure_delete is per connection: it is set inside the transaction so it applies to the
+     *   connection that performs the DELETE (Room's writer connection).
+     * - Never use secure_delete=FAST: it does not scrub freelist pages.
+     * - Never close Room's database or touch -wal / -shm from app code: other threads keep
+     *   writing, and doing so loses committed data or corrupts the database.
+     *
+     * Known limit: the blocks freed when -wal is truncated are not overwritten, and on flash
+     * storage no file-level overwrite is guaranteed to reach the physical cells.
+     */
+    private void secureDelete(Runnable deletion, boolean vacuum) {
         synchronized (maintenanceLock) {
-            db.runInTransaction(dao::replaceAll);
-
             db.runInTransaction(() -> {
-                dao.deleteAll();
-                conversationStateDao.clear();
+                enableSecureDelete();
+                deletion.run();
             });
+
+            if (vacuum) {
+                try {
+                    // VACUUM cannot run inside a transaction; it rebuilds the file and shrinks it
+                    db.getOpenHelper().getWritableDatabase().execSQL("VACUUM");
+                } catch (RuntimeException e) {
+                    Log.w(TAG, "VACUUM after delete failed", e);
+                }
+            }
+
+            checkpointTruncate();
         }
-        compactUnlocked();
     }
 
-    private void compactUnlocked() {
+    // Must be called inside a transaction, so that it runs on the writer connection.
+    private void enableSecureDelete() {
         SupportSQLiteDatabase raw = db.getOpenHelper().getWritableDatabase();
-
-        try {
-            raw.execSQL("PRAGMA wal_checkpoint(TRUNCATE);");
-            raw.close();
-        } catch (Exception ignored) {
+        try (Cursor c = raw.query("PRAGMA secure_delete=ON")) {
+            if (!c.moveToFirst() || c.getInt(0) != 1)
+                Log.w(TAG, "PRAGMA secure_delete could not be enabled; deleted data may remain on disk");
         }
-
-        try {
-            raw.execSQL("VACUUM;");
-        } catch (Exception ignored) {
-        }
-
-        wipeFile(new File(context.getDatabasePath("chatlogs.db") + "-wal"), true);
-        wipeFile(new File(context.getDatabasePath("chatlogs.db") + "-shm"), false);
     }
 
-
-    private void wipeFile(File f, boolean resetLength) {
-        if (!f.exists()) return;
-        try (RandomAccessFile raf = new RandomAccessFile(f, "rw")) {
-            long len = f.length();
-            byte[] zero = new byte[4096];
-            long pos = 0;
-            while (pos < len) {
-                int toWrite = (int) Math.min(zero.length, len - pos);
-                raf.write(zero, 0, toWrite);
-                pos += toWrite;
+    // Must be called outside a transaction (SQLite refuses to checkpoint inside one).
+    private void checkpointTruncate() {
+        SupportSQLiteDatabase raw = db.getOpenHelper().getWritableDatabase();
+        for (int attempt = 1; attempt <= CHECKPOINT_ATTEMPTS; attempt++) {
+            try (Cursor c = raw.query("PRAGMA wal_checkpoint(TRUNCATE)")) {
+                // Result row: busy (1 = blocked by a reader or writer), log frames, checkpointed frames
+                if (c.moveToFirst() && c.getInt(0) == 0)
+                    return;
+                Log.d(TAG, "wal_checkpoint busy, attempt " + attempt + "/" + CHECKPOINT_ATTEMPTS);
+            } catch (RuntimeException e) {
+                Log.w(TAG, "wal_checkpoint failed", e);
+                return;
             }
-
-            if (resetLength) {
-                raf.setLength(0);
+            try {
+                Thread.sleep(CHECKPOINT_RETRY_DELAY_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
             }
-
-        } catch (IOException ex) {
-            Log.d("Catched exception while removing data: ", ex.getMessage());
         }
+        Log.w(TAG, "wal_checkpoint(TRUNCATE) did not complete; wiped pages may stay in -wal until the next checkpoint");
     }
 
     private void considerAutoCleanup() {
@@ -376,31 +386,36 @@ public class MessageStorageRepository {
             }
 
             long toFree = usage - globalLimitBytes;
-            long freed = 0L;
-            int rowsDeleted = 0;
 
-            while (freed < toFree) {
-                List<IdSizePair> batch = dao.selectOldestGlobalByKind(MessageKind.CHANNEL, CleanupResult.CLEANUP_BATCH);
-                if (batch.isEmpty()) {
-                    // No CHANNEL messages left, fall back to oldest overall
-                    batch = dao.selectOldestGlobal(CleanupResult.CLEANUP_BATCH);
+            // One transaction with secure_delete on: automatic cleanup wipes what it deletes too
+            return db.runInTransaction(() -> {
+                enableSecureDelete();
+                long freed = 0L;
+                int rowsDeleted = 0;
+
+                while (freed < toFree) {
+                    List<IdSizePair> batch = dao.selectOldestGlobalByKind(MessageKind.CHANNEL, CleanupResult.CLEANUP_BATCH);
+                    if (batch.isEmpty()) {
+                        // No CHANNEL messages left, fall back to oldest overall
+                        batch = dao.selectOldestGlobal(CleanupResult.CLEANUP_BATCH);
+                    }
+                    if (batch.isEmpty()) break;
+
+                    List<Long> ids = new ArrayList<>(batch.size());
+                    for (IdSizePair p : batch) {
+                        ids.add(p.id);
+                        freed += p.aproxRowSize;
+                        if (freed >= toFree) break;
+                    }
+
+                    int deleted = dao.deleteByIds(ids);
+                    rowsDeleted += deleted;
+
+                    if (deleted == 0) break; // safety
                 }
-                if (batch.isEmpty()) break;
 
-                List<Long> ids = new ArrayList<>(batch.size());
-                for (IdSizePair p : batch) {
-                    ids.add(p.id);
-                    freed += p.aproxRowSize;
-                    if (freed >= toFree) break;
-                }
-
-                int deleted = dao.deleteByIds(ids);
-                rowsDeleted += deleted;
-
-                if (deleted == 0) break; // safety
-            }
-
-            return new CleanupResult(rowsDeleted, freed);
+                return new CleanupResult(rowsDeleted, freed);
+            });
         }
     }
 
@@ -420,34 +435,39 @@ public class MessageStorageRepository {
             }
 
             long toFree = usage - serverLimitBytes;
-            long freed = 0L;
-            int rowsDeleted = 0;
 
-            while (freed < toFree) {
-                List<IdSizePair> batch =
-                        dao.selectOldestForServerByKind(serverId, MessageKind.CHANNEL, CleanupResult.CLEANUP_BATCH);
+            // One transaction with secure_delete on: automatic cleanup wipes what it deletes too
+            return db.runInTransaction(() -> {
+                enableSecureDelete();
+                long freed = 0L;
+                int rowsDeleted = 0;
 
-                if (batch.isEmpty()) {
-                    // No CHANNEL messages left for this server, fall back to oldest overall
-                    batch = dao.selectOldestForServer(serverId, CleanupResult.CLEANUP_BATCH);
+                while (freed < toFree) {
+                    List<IdSizePair> batch =
+                            dao.selectOldestForServerByKind(serverId, MessageKind.CHANNEL, CleanupResult.CLEANUP_BATCH);
+
+                    if (batch.isEmpty()) {
+                        // No CHANNEL messages left for this server, fall back to oldest overall
+                        batch = dao.selectOldestForServer(serverId, CleanupResult.CLEANUP_BATCH);
+                    }
+
+                    if (batch.isEmpty()) break;
+
+                    List<Long> ids = new ArrayList<>(batch.size());
+                    for (IdSizePair p : batch) {
+                        ids.add(p.id);
+                        freed += p.aproxRowSize;
+                        if (freed >= toFree) break;
+                    }
+
+                    int deleted = dao.deleteByIds(ids);
+                    rowsDeleted += deleted;
+
+                    if (deleted == 0) break; // safety
                 }
 
-                if (batch.isEmpty()) break;
-
-                List<Long> ids = new ArrayList<>(batch.size());
-                for (IdSizePair p : batch) {
-                    ids.add(p.id);
-                    freed += p.aproxRowSize;
-                    if (freed >= toFree) break;
-                }
-
-                int deleted = dao.deleteByIds(ids);
-                rowsDeleted += deleted;
-
-                if (deleted == 0) break; // safety
-            }
-
-            return new CleanupResult(rowsDeleted, freed);
+                return new CleanupResult(rowsDeleted, freed);
+            });
         }
     }
 }

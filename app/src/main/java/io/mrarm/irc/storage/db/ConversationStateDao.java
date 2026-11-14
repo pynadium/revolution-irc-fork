@@ -89,7 +89,7 @@ public interface ConversationStateDao {
     @Query("""
                 DELETE FROM conversation_state
                 WHERE serverId = :serverId
-                  AND channel = :channel
+                  AND channel = :channel COLLATE NOCASE
             """)
     void deleteByChannel(UUID serverId, String channel);
 
