@@ -167,29 +167,22 @@ public class MessageStorageRepository {
                                         List<Integer> excludeTypes, Writer out) throws IOException {
         SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
         int batchSize = 500;
-        long beforeId = Long.MAX_VALUE;
+        long afterId = Long.MIN_VALUE;
 
+        // Pages forward by id and writes each batch as soon as it is read, so memory use is
+        // one batch (500 rows) no matter how large the history is.
         List<MessageEntity> batch;
-        List<List<MessageEntity>> batches = new ArrayList<>();
         do {
-            batch = dao().loadFilteredBefore(serverId, channel, sender, beforeId, batchSize, excludeTypes);
-            if (batch.isEmpty())
-                break;
-            batches.add(batch);
-            beforeId = batch.get(batch.size() - 1).id;
-        } while (batch.size() == batchSize);
-
-        // batches are newest-first overall, each batch newest-first internally; reverse both
-        for (int i = batches.size() - 1; i >= 0; --i) {
-            List<MessageEntity> b = batches.get(i);
-            for (int j = b.size() - 1; j >= 0; --j) {
-                MessageEntity e = b.get(j);
+            batch = dao().loadFilteredAfter(serverId, channel, sender, afterId, batchSize, excludeTypes);
+            for (MessageEntity e : batch) {
                 out.write("[" + fmt.format(new Date(e.timestamp)) + "] "
                         + (e.sender != null ? e.sender + ": " : "")
                         + (e.text != null ? e.text : ""));
                 out.write("\n");
             }
-        }
+            if (!batch.isEmpty())
+                afterId = batch.get(batch.size() - 1).id;
+        } while (batch.size() == batchSize);
     }
 
     public void loadNearAsync(UUID serverId, String channel, long centerId, int limit,

@@ -117,6 +117,23 @@ public interface MessageDao {
                                             long beforeId, int limit, List<Integer> excludeTypes);
 
     /**
+     * Log viewer export: same filter as loadFilteredBefore, but oldest first, so the export can
+     * be written batch by batch without keeping the whole history in memory
+     */
+    @Query("""
+                SELECT * FROM messages_logs
+                WHERE serverId = :serverId
+                AND (:channel IS NULL OR channel = :channel COLLATE NOCASE)
+                AND (:sender IS NULL OR sender = :sender COLLATE NOCASE)
+                AND id > :afterId
+                AND type NOT IN (:excludeTypes)
+                ORDER BY id ASC
+                LIMIT :limit
+            """)
+    List<MessageEntity> loadFilteredAfter(UUID serverId, String channel, String sender,
+                                           long afterId, int limit, List<Integer> excludeTypes);
+
+    /**
      * Stats
      */
     @Query("SELECT SUM(aprox_row_size) FROM messages_logs")
