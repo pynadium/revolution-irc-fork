@@ -1,30 +1,35 @@
 package io.mrarm.irc.infrastructure.threading;
 
-import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
  * Simple utility for running background work on a shared IO thread pool
  * and posting results back to the main thread.
+ *
+ * <p>Both threads come from the current {@link SchedulerProvider} ({@code ioExecutor} and
+ * {@code mainExecutor}), resolved on every call so tests can swap the provider.
  */
 public class AppAsyncExecutor {
 
-    private static final Handler MAIN = new Handler(Looper.getMainLooper());
-    private static final ExecutorService IO = Executors.newCachedThreadPool(r -> {
-        Thread t = new Thread(r, "Async-IO");
-        t.setDaemon(true);
-        return t;
-    });
-
     private AppAsyncExecutor() {
         // Utility class; no instances.
+    }
+
+    private static SchedulerProvider provider() {
+        return SchedulerProviderHolder.get();
+    }
+
+    private static Future<?> submitIo(Callable<Void> body) {
+        FutureTask<Void> task = new FutureTask<>(body);
+        provider().getIoExecutor().execute(task);
+        return task;
     }
 
     /**
@@ -33,14 +38,14 @@ public class AppAsyncExecutor {
      * @return a Future<?> representing the background task.
      */
     public static Future<?> io(Runnable work, Runnable uiCallback) {
-        return IO.submit(() -> {
+        return submitIo(() -> {
             try {
                 work.run();
             } catch (Exception e) {
                 Log.e("Async", "Background work failed", e);
             }
             if (uiCallback != null)
-                MAIN.post(uiCallback);
+                provider().getMainExecutor().execute(uiCallback);
             return null;
         });
     }
@@ -55,7 +60,7 @@ public class AppAsyncExecutor {
      * @return a Future<?> representing the background task.
      */
     public static <T> Future<?> io(Supplier<T> work, T fallback, Consumer<T> uiCallback) {
-        return IO.submit(() -> {
+        return submitIo(() -> {
             T result = null;
             try {
                 result = work.get();
@@ -64,7 +69,7 @@ public class AppAsyncExecutor {
             }
             final T finalResult = result != null ? result : fallback;
             if (uiCallback != null)
-                MAIN.post(() -> uiCallback.accept(finalResult));
+                provider().getMainExecutor().execute(() -> uiCallback.accept(finalResult));
             return null;
         });
     }
@@ -78,7 +83,7 @@ public class AppAsyncExecutor {
             // Already on main thread
             uiCallback.run();
         } else {
-            MAIN.post(uiCallback);
+            provider().getMainExecutor().execute(uiCallback);
         }
     }
 
