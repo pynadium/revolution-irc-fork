@@ -1,5 +1,7 @@
 package io.mrarm.irc.infrastructure.threading;
 
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -16,6 +18,8 @@ public class FakeSchedulerProvider implements SchedulerProvider {
 
     private final FakeDelayScheduler mDelayScheduler;
     private final Executor mDirect = Runnable::run;
+    private final List<Throwable> mUncaught = new CopyOnWriteArrayList<>();
+    private final List<Thread> mThreads = new CopyOnWriteArrayList<>();
 
     public FakeSchedulerProvider() {
         this(new FakeDelayScheduler());
@@ -49,13 +53,36 @@ public class FakeSchedulerProvider implements SchedulerProvider {
         return mDirect;
     }
 
+    /**
+     * Unlike the production factory, nothing is caught here: an exception that escapes a task
+     * reaches the thread's uncaught handler and is recorded, so a test can assert that the code
+     * under test contained it itself.
+     */
     @Override
     public ThreadFactory newThreadFactory(String name) {
         return r -> {
             Thread t = new Thread(r, name);
             t.setDaemon(true);
+            t.setUncaughtExceptionHandler((thread, e) -> mUncaught.add(e));
+            mThreads.add(t);
             return t;
         };
+    }
+
+    /**
+     * Exceptions that escaped threads created by {@link #newThreadFactory(String)}. A thread
+     * reports its exception only while it dies, after its executor may already count as
+     * terminated: call {@link #joinThreads(long)} first.
+     */
+    public List<Throwable> getUncaughtExceptions() {
+        return mUncaught;
+    }
+
+    /** Waits for every thread created by {@link #newThreadFactory(String)} to end. */
+    public void joinThreads(long timeoutMillis) throws InterruptedException {
+        // By index: a pool replaces a worker killed by an exception, adding a thread meanwhile.
+        for (int i = 0; i < mThreads.size(); i++)
+            mThreads.get(i).join(timeoutMillis);
     }
 
     @Override

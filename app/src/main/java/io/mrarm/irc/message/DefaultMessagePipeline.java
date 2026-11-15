@@ -3,11 +3,12 @@ package io.mrarm.irc.message;
 import android.util.Log;
 
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 
 import io.mrarm.irc.config.ChatSettings;
+import io.mrarm.irc.infrastructure.threading.SchedulerProvider;
+import io.mrarm.irc.infrastructure.threading.SchedulerProviderHolder;
 import io.mrarm.irc.protocol.dto.MessageId;
 import io.mrarm.irc.protocol.dto.MessageInfo;
 import io.mrarm.irc.protocol.dto.RoomMessageId;
@@ -28,19 +29,21 @@ public class DefaultMessagePipeline implements MessagePipeline {
     private final MessagePipelineContext pipelineContext;
     private final MessageBus messageBus;
 
+    // Single thread: messages are persisted and emitted in the order accept() received them.
+    final ExecutorService pipelineExecutor;
 
     public DefaultMessagePipeline(MessagePipelineContext context,
                                   MessageBus messageBus) {
-        this.pipelineContext = context;
-        this.messageBus = messageBus;
+        this(context, messageBus, SchedulerProviderHolder.get());
     }
 
-    public final ExecutorService pipelineExecutor =
-            Executors.newSingleThreadExecutor(r -> {
-                Thread t = new Thread(r, "MessagePipeline");
-                t.setDaemon(true);
-                return t;
-            });
+    public DefaultMessagePipeline(MessagePipelineContext context,
+                                  MessageBus messageBus,
+                                  SchedulerProvider schedulers) {
+        this.pipelineContext = context;
+        this.messageBus = messageBus;
+        this.pipelineExecutor = schedulers.newSerialExecutor("MessagePipeline");
+    }
 
     @Override
     public void accept(String channelName, MessageInfo message) {
