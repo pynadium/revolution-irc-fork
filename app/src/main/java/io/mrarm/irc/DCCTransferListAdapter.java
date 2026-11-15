@@ -26,6 +26,7 @@ import java.util.List;
 import io.mrarm.irc.dialog.MenuBottomSheetDialog;
 import io.mrarm.irc.protocol.irc.dcc.DCCServer;
 import io.mrarm.irc.protocol.irc.dcc.DCCServerManager;
+import io.mrarm.irc.protocol.irc.dcc.DCCUtils;
 import io.mrarm.irc.util.AdvancedDividerItemDecoration;
 import io.mrarm.irc.util.FormatUtils;
 
@@ -345,9 +346,9 @@ public class DCCTransferListAdapter extends RecyclerView.Adapter implements
                 } else if (mDownload.getClient() != null) {
                     mProgressBar.setIndeterminate(false);
                     mProgressBar.setMax(100000);
-                    mProgressBar.setProgress((int)
-                            (mDownload.getClient().getDownloadedSize() * 100000L /
-                                    mDownload.getClient().getExpectedSize()));
+                    mProgressBar.setProgress(DCCUtils.progress(
+                            mDownload.getClient().getDownloadedSize(),
+                            mDownload.getClient().getExpectedSize(), 100000));
 
                     InetSocketAddress addr = (InetSocketAddress) mDownload.getClient()
                             .getRemoteAddress();
@@ -363,8 +364,8 @@ public class DCCTransferListAdapter extends RecyclerView.Adapter implements
             if (mSession != null) {
                 mProgressBar.setIndeterminate(false);
                 mProgressBar.setMax(100000);
-                mProgressBar.setProgress((int)
-                        (mSession.getAcknowledgedSize() * 100000L / mSession.getTotalSize()));
+                mProgressBar.setProgress(DCCUtils.progress(
+                        mSession.getAcknowledgedSize(), mSession.getTotalSize(), 100000));
             }
         }
 

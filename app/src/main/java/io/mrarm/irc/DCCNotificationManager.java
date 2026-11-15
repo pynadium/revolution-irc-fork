@@ -20,6 +20,7 @@ import java.util.Map;
 import io.mrarm.irc.protocol.irc.dcc.DCCClient;
 import io.mrarm.irc.protocol.irc.dcc.DCCServer;
 import io.mrarm.irc.protocol.irc.dcc.DCCServerManager;
+import io.mrarm.irc.protocol.irc.dcc.DCCUtils;
 import io.mrarm.irc.util.FormatUtils;
 
 public class DCCNotificationManager implements DCCServerManager.UploadListener,
@@ -133,7 +134,7 @@ public class DCCNotificationManager implements DCCServerManager.UploadListener,
             return true;
         synchronized (this) {
             for (List<DCCServer.UploadSession> sessionList : mUploadSessions.values()) {
-                if (sessionList.size() > 0)
+                if (!sessionList.isEmpty())
                     return true;
             }
             return false;
@@ -273,8 +274,8 @@ public class DCCNotificationManager implements DCCServerManager.UploadListener,
         NotificationCompat.Builder builder = new NotificationCompat.Builder(mContext,
                 NOTIFICATION_CHANNEL)
                 .setContentTitle(entry.getFileName())
-                .setProgress(100000, (int) (uploadSession.getAcknowledgedSize() * 100000L /
-                        uploadSession.getTotalSize()), false)
+                .setProgress(100000, DCCUtils.progress(uploadSession.getAcknowledgedSize(),
+                        uploadSession.getTotalSize(), 100000), false)
                 .setContentText(
                         FormatUtils.formatByteSize(uploadSession.getAcknowledgedSize(), unit) +
 
@@ -327,8 +328,8 @@ public class DCCNotificationManager implements DCCServerManager.UploadListener,
             DCCClient client = download.getClient();
             int unit = FormatUtils.getByteFormatUnit(client.getExpectedSize());
             builder
-                    .setProgress(100000, (int) (client.getDownloadedSize() * 100000L /
-                            client.getExpectedSize()), false)
+                    .setProgress(100000, DCCUtils.progress(client.getDownloadedSize(),
+                            client.getExpectedSize(), 100000), false)
                     .setContentText(FormatUtils.formatByteSize(client.getDownloadedSize(), unit) +
                             "/" + FormatUtils.formatByteSize(client.getExpectedSize(), unit))
                     .addAction(createCancelAction(id));

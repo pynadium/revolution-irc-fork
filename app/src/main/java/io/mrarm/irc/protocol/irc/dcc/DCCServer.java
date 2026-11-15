@@ -69,10 +69,14 @@ public class DCCServer implements Closeable {
     public void close() throws IOException {
         if (serverSocket != null)
             serverSocket.close();
+        // UploadSession.close() removes itself from `sessions`, so iterate over a copy; closing
+        // outside the lock also keeps the session listeners from running while it is held
+        List<UploadSession> toClose;
         synchronized (sessions) {
-            for (UploadSession session : sessions)
-                session.close();
+            toClose = new ArrayList<>(sessions);
         }
+        for (UploadSession session : toClose)
+            session.close();
     }
 
     void doAccept() throws IOException {

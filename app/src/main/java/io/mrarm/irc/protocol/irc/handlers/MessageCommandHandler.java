@@ -230,6 +230,12 @@ public class MessageCommandHandler implements CommandHandler {
                 // far from this parser and on threads that only expect IOException
                 if (port < 0 || port > 65535)
                     throw new InvalidMessageException("DCC SEND: port out of range");
+                // Offers and reverse requests create a download sized by the peer. The client only
+                // stops reading once the expected size is reached, so a size <= 0 would let the
+                // peer write without limit. A reverse response echoes our own size: not checked.
+                boolean isReverseResponse = otherArgs.length > 3 && port != 0;
+                if (!isReverseResponse && size <= 0)
+                    throw new InvalidMessageException("DCC SEND: file size must be positive");
                 if (otherArgs.length > 3 && port == 0) { // Reverse DCC request
                     if (dccClientManager != null)
                         dccClientManager.onFileOfferedUsingReverse(connection, sender, filename, size, reverseId);

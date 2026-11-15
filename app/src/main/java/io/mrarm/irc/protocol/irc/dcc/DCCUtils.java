@@ -20,6 +20,19 @@ public class DCCUtils {
         return ((l >> 24) & 0xff) + "." + ((l >> 16) & 0xff) + "." + ((l >> 8) & 0xff) + "." + (l & 0xff);
     }
 
+    /**
+     * Transfer progress scaled to {@code max}, for progress bars. Safe for an unknown or empty
+     * transfer ({@code total <= 0} gives 0) and never above {@code max}, even if the peer sent
+     * or acknowledged more than announced.
+     */
+    public static int progress(long done, long total, int max) {
+        if (total <= 0 || done <= 0)
+            return 0;
+        if (done >= total)
+            return max;
+        return (int) (done * max / total);
+    }
+
 
 
     public static String escapeFilename(String filename) {

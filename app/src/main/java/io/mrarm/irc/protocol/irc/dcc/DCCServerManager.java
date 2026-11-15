@@ -141,6 +141,10 @@ public class DCCServerManager implements DCCServer.SessionListener {
     }
 
     public void cancelUpload(UploadEntry upload) {
+        // Callers look the entry up first; it is null when the upload is already gone
+        // (double tap on Cancel, stale notification)
+        if (upload == null)
+            return;
         if (upload.server != null) {
             try {
                 upload.server.close();
