@@ -160,7 +160,7 @@ public class ServerConnectionSession {
         boolean createdNewConnection = false;
 
         if (mApi == null || !(mApi instanceof IRCConnection)) {
-            connection = new IRCConnection();
+            connection = sessionInitializer.createConnection();
             sessionInitializer.attach(connection, this, mServerConfig, mSASLOptions);
 
             createdNewConnection = true;

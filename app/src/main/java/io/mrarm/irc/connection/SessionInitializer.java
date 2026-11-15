@@ -34,6 +34,14 @@ public class SessionInitializer {
         this.context = context;
     }
 
+    /**
+     * Creates the protocol connection for a session's first connect. Kept separate from
+     * {@link #attach} so tests can supply a connection that opens no socket.
+     */
+    public IRCConnection createConnection() {
+        return new IRCConnection();
+    }
+
     public void attach(IRCConnection connection, ServerConnectionSession session,
                        ServerConfigData config, SASLOptions saslOptions) {
         MessageStorageRepository repo = MessageStorageRepository.getInstance(context);

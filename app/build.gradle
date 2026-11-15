@@ -59,6 +59,12 @@ android {
             multiDexEnabled = true
         }
     }
+    testOptions {
+        unitTests {
+            // Robolectric tests read string resources (e.g. the default quit message)
+            includeAndroidResources = true
+        }
+    }
     namespace = 'io.mrarm.irc'
     buildToolsVersion = '35.0.1'
 }
