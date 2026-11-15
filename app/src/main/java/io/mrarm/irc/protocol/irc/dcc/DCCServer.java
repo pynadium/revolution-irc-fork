@@ -16,6 +16,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class DCCServer implements Closeable {
 
+    private static final int REVERSE_CONNECT_TIMEOUT_MS = 10_000;
+
     private final FileChannelFactory fileFactory;
     private ServerSocketChannel serverSocket;
     private final List<SessionListener> sessionListeners = new ArrayList<>();
@@ -74,11 +76,15 @@ public class DCCServer implements Closeable {
     }
 
     void doAccept() throws IOException {
-        if (socketLimit != -1 && sessions.size() >= socketLimit)
-            return;
         SocketChannel socket = serverSocket.accept();
         if (socket == null)
             return;
+        // Over the limit the connection is accepted and closed at once. Leaving it pending
+        // keeps OP_ACCEPT ready, and the selector thread would spin on it.
+        if (socketLimit != -1 && sessions.size() >= socketLimit) {
+            socket.close();
+            return;
+        }
         System.out.println("Accepted DCC connection from: " + socket.socket().getRemoteSocketAddress().toString());
         new UploadSession(fileFactory.open(), socket, offset);
     }
@@ -87,9 +93,15 @@ public class DCCServer implements Closeable {
         if (socketLimit != -1 && sessions.size() >= socketLimit)
             return false;
         System.out.println("Starting reverse DCC upload to: " + ip + ":" + port);
-        SocketChannel socket = SocketChannel.open(new InetSocketAddress(ip, port));
-        if (socket == null)
-            return false;
+        // This runs on the IRC socket thread, which reads nothing while it waits: bound the
+        // connect to a peer-chosen address instead of waiting for the OS timeout (1-2 minutes)
+        SocketChannel socket = SocketChannel.open();
+        try {
+            socket.socket().connect(new InetSocketAddress(ip, port), REVERSE_CONNECT_TIMEOUT_MS);
+        } catch (IOException | RuntimeException e) {
+            socket.close();
+            throw e;
+        }
         new UploadSession(fileFactory.open(), socket, offset);
         return true;
     }
@@ -114,7 +126,7 @@ public class DCCServer implements Closeable {
                 return;
             }
             if (k.isWritable())
-                doWrite();
+                doWrite(k);
         };
 
         UploadSession(FileChannel file, SocketChannel socket, long startPos) throws IOException {
@@ -224,7 +236,7 @@ public class DCCServer implements Closeable {
             return r;
         }
 
-        private void doWrite() throws IOException {
+        private void doWrite(SelectionKey k) throws IOException {
             while (readFile(buffer) > 0 || buffer.position() > 0) {
                 buffer.flip();
                 try {
@@ -234,6 +246,11 @@ public class DCCServer implements Closeable {
                     buffer.compact();
                 }
             }
+            // Whole file sent and nothing buffered: stop asking for OP_WRITE. A socket is almost
+            // always writable, so keeping it would wake the selector in a busy loop until the
+            // peer closes. Reads (the peer's ACKs) stay registered.
+            if (!file.isOpen() && buffer.position() == 0 && k.isValid())
+                k.interestOps(k.interestOps() & ~SelectionKey.OP_WRITE);
         }
 
     }

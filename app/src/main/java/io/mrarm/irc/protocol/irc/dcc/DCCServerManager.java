@@ -133,7 +133,9 @@ public class DCCServerManager implements DCCServer.SessionListener {
             return;
         try {
             entry.server.startReverseUpload(ip, port);
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
+            // Called on the IRC socket thread with a peer-supplied address: a failure here must
+            // only cost this upload attempt
             e.printStackTrace();
         }
     }

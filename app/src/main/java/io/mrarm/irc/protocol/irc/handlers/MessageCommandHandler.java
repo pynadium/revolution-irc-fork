@@ -223,9 +223,13 @@ public class MessageCommandHandler implements CommandHandler {
                     size = Long.parseLong(otherArgs[2]);
                     if (otherArgs.length > 3)
                         reverseId = Integer.parseInt(otherArgs[3]);
-                } catch (Exception ignored) { // NumberFormatException or NPE
-                    throw new InvalidMessageException("DCC RESUME: invalid numeric values");
+                } catch (Exception e) { // NumberFormatException or NPE
+                    throw new InvalidMessageException("DCC SEND: invalid numeric values", e);
                 }
+                // Checked here because InetSocketAddress throws IllegalArgumentException on it,
+                // far from this parser and on threads that only expect IOException
+                if (port < 0 || port > 65535)
+                    throw new InvalidMessageException("DCC SEND: port out of range");
                 if (otherArgs.length > 3 && port == 0) { // Reverse DCC request
                     if (dccClientManager != null)
                         dccClientManager.onFileOfferedUsingReverse(connection, sender, filename, size, reverseId);

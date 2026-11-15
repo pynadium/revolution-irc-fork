@@ -67,9 +67,11 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
     private static DCCManager sInstance;
 
     private static final String PREF_DCC_ASKED_FOR_PERMISSION = "dcc_storage_permission_asked";
-    private static final String PREF_DCC_ALWAYS_USE_APP_DOWNLOAD_DIR = "dcc_force_application_download_directory";
+    private static final String PREF_DCC_ALWAYS_USE_APP_DOWNLOAD_DIR =
+            "dcc_force_application_download_directory";
     private static final String PREF_DCC_DIRECTORY_OVERRIDE_URI = "dcc_download_directory_uri";
-    private static final String PREF_DCC_DIRECTORY_OVERRIDE_URI_SYSTEM = "dcc_download_directory_uri_system";
+    private static final String PREF_DCC_DIRECTORY_OVERRIDE_URI_SYSTEM =
+            "dcc_download_directory_uri_system";
 
     public static DCCManager getInstance(Context context) {
         if (sInstance == null)
@@ -82,7 +84,8 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
     private final DCCServerManager mServer;
     private final DCCHistory mHistory;
     private final Map<DCCServer, DCCServerManager.UploadEntry> mUploads = new HashMap<>();
-    private final Map<DCCServerManager.UploadEntry, UploadServerInfo> mUploadServers = new HashMap<>();
+    private final Map<DCCServerManager.UploadEntry, UploadServerInfo> mUploadServers =
+            new HashMap<>();
     private final Map<DCCServerManager.UploadEntry, PortMapper.PortMappingResult> mUploadPortMappings = new HashMap<>();
     private final List<DCCServer.UploadSession> mSessions = new ArrayList<>();
     private final List<DownloadInfo> mDownloads = new ArrayList<>();
@@ -109,31 +112,27 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
         mServer.addUploadListener(this);
         mServer.addUploadListener(mNotificationManager);
         addDownloadListener(mNotificationManager);
-        mAlwaysUseFallbackDir = mPreferences.getBoolean(PREF_DCC_ALWAYS_USE_APP_DOWNLOAD_DIR, false);
+        mAlwaysUseFallbackDir = mPreferences.getBoolean(PREF_DCC_ALWAYS_USE_APP_DOWNLOAD_DIR,
+                false);
         String uri = mPreferences.getString(PREF_DCC_DIRECTORY_OVERRIDE_URI, null);
         if (uri != null) {
             mDownloadDirectoryOverrideURI = Uri.parse(uri);
-            mIsDownloadDirectoryOverrideURISystem = mPreferences.getBoolean(
-                    PREF_DCC_DIRECTORY_OVERRIDE_URI_SYSTEM, false);
+            mIsDownloadDirectoryOverrideURISystem =
+                    mPreferences.getBoolean(PREF_DCC_DIRECTORY_OVERRIDE_URI_SYSTEM, false);
         }
         checkSystemDownloadsDirectoryAccess();
     }
 
     public void setAlwaysUseApplicationDownloadDirectory(boolean value) {
         mAlwaysUseFallbackDir = value;
-        mPreferences.edit()
-                .putBoolean(PREF_DCC_ALWAYS_USE_APP_DOWNLOAD_DIR, value)
-                .apply();
+        mPreferences.edit().putBoolean(PREF_DCC_ALWAYS_USE_APP_DOWNLOAD_DIR, value).apply();
         checkSystemDownloadsDirectoryAccess();
     }
 
     public void setOverrideDownloadDirectory(Uri uri, boolean isSystem) {
         mDownloadDirectoryOverrideURI = uri;
         mIsDownloadDirectoryOverrideURISystem = isSystem;
-        mPreferences.edit()
-                .putString(PREF_DCC_DIRECTORY_OVERRIDE_URI, uri.toString())
-                .putBoolean(PREF_DCC_DIRECTORY_OVERRIDE_URI_SYSTEM, isSystem)
-                .apply();
+        mPreferences.edit().putString(PREF_DCC_DIRECTORY_OVERRIDE_URI, uri.toString()).putBoolean(PREF_DCC_DIRECTORY_OVERRIDE_URI_SYSTEM, isSystem).apply();
     }
 
     public Uri getDownloadDirectoryOverrideURI() {
@@ -147,21 +146,19 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
     }
 
     public boolean isSystemDownloadDirectoryUsed() {
-        return (mHasSystemDirectoryAccess || mUseSystemDirectoryViaControlResolver) &&
-                (mDownloadDirectoryOverrideURI == null || mIsDownloadDirectoryOverrideURISystem);
+        return (mHasSystemDirectoryAccess || mUseSystemDirectoryViaControlResolver) && (mDownloadDirectoryOverrideURI == null || mIsDownloadDirectoryOverrideURISystem);
     }
 
     private void checkSystemDownloadsDirectoryAccess() {
         if (mDownloadDirectoryOverrideURI != null && !mAlwaysUseFallbackDir) {
-            DocumentFile dir = DocumentFile.fromTreeUri(mContext,
-                    mDownloadDirectoryOverrideURI);
+            DocumentFile dir = DocumentFile.fromTreeUri(mContext, mDownloadDirectoryOverrideURI);
             mHasSystemDirectoryAccess = dir.exists() && dir.canWrite();
             mUseSystemDirectoryViaControlResolver = false;
             return;
         }
 
-        File downloadsDir = Environment.getExternalStoragePublicDirectory(
-                Environment.DIRECTORY_DOWNLOADS);
+        File downloadsDir =
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
         if (downloadsDir != null && downloadsDir.canWrite() && !mAlwaysUseFallbackDir) {
             mDownloadDirectory = downloadsDir;
             mHasSystemDirectoryAccess = true;
@@ -171,17 +168,14 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
             mHasSystemDirectoryAccess = false;
             mUseSystemDirectoryViaControlResolver = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q;
         }
-        Log.d("DCCManager", "Download directory: " +
-                (mDownloadDirectory != null ? mDownloadDirectory.getAbsolutePath() : "null"));
+        Log.d("DCCManager", "Download directory: " + (mDownloadDirectory != null ?
+                mDownloadDirectory.getAbsolutePath() : "null"));
     }
 
     public boolean needsAskSystemDownloadsPermission() {
         if (!mHasSystemDirectoryAccess)
             checkSystemDownloadsDirectoryAccess();
-        return !mHasSystemDirectoryAccess &&
-                !mUseSystemDirectoryViaControlResolver &&
-                !mPreferences.getBoolean(PREF_DCC_ASKED_FOR_PERMISSION, false) &&
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.M;
+        return !mHasSystemDirectoryAccess && !mUseSystemDirectoryViaControlResolver && !mPreferences.getBoolean(PREF_DCC_ASKED_FOR_PERMISSION, false) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M;
     }
 
     public DCCNotificationManager getNotificationManager() {
@@ -219,16 +213,15 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
 
             ServerConnectionData connection = uploadEntry.getConnection();
             ServerConnectionSession connectionInfo = null;
-            for (ServerConnectionSession info : ServerConnectionManager.getInstance(mContext)
-                    .getConnections()) {
-                if (((ServerConnectionApi) info.getApiInstance()).getServerConnectionData()
-                        == connection) {
+            for (ServerConnectionSession info :
+                    ServerConnectionManager.getInstance(mContext).getConnections()) {
+                if (((ServerConnectionApi) info.getApiInstance()).getServerConnectionData() == connection) {
                     connectionInfo = info;
                     break;
                 }
             }
-            mUploadServers.put(uploadEntry, connectionInfo != null
-                    ? new UploadServerInfo(connectionInfo) : null);
+            mUploadServers.put(uploadEntry, connectionInfo != null ?
+                    new UploadServerInfo(connectionInfo) : null);
         }
     }
 
@@ -252,8 +245,8 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
         try {
             PortMapper.removePortMapping(mapping);
         } catch (Exception e) {
-            Log.w("DCCManager", "Failed to remove port mapping for port " +
-                    mapping.getExternalPort());
+            Log.w("DCCManager",
+                    "Failed to remove port mapping for port " + mapping.getExternalPort());
             e.printStackTrace();
         }
     }
@@ -416,8 +409,8 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
 
     public void startUpload(ServerConnectionSession server, String channel,
                             DCCServer.FileChannelFactory file, String fileName, long fileSize) {
-        ServerConnectionData connectionData = ((ServerConnectionApi) server.getApiInstance())
-                .getServerConnectionData();
+        ServerConnectionData connectionData =
+                ((ServerConnectionApi) server.getApiInstance()).getServerConnectionData();
 
         if (ServerConnectionManager.isWifiConnected(mContext)) {
             AsyncTask.THREAD_POOL_EXECUTOR.execute(() -> {
@@ -425,9 +418,8 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
                 PortMapper.PortMappingResult mapping = null;
                 try {
                     upload = mServer.startUpload(connectionData, channel, fileName, file);
-                    mapping = PortMapper.mapPort(new PortMapper.PortMappingRequest(
-                            AddPortMappingCall.PROTOCOL_TCP, upload.getPort(),
-                            upload.getPort(), "Revolution IRC DCC transfer"));
+                    mapping =
+                            PortMapper.mapPort(new PortMapper.PortMappingRequest(AddPortMappingCall.PROTOCOL_TCP, upload.getPort(), upload.getPort(), "Revolution IRC DCC transfer"));
                     synchronized (mUploads) {
                         if (!mUploads.containsKey(upload.getServer()))
                             throw new IOException("Upload cancelled while we were setting up" +
@@ -435,41 +427,45 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
                         mUploadPortMappings.put(upload, mapping);
                     }
                     mServer.setUploadPortForwarded(upload, mapping.getExternalPort());
-                    server.getApiInstance().sendMessage(channel, DCCUtils.buildSendMessage(
-                            mapping.getExternalIP(), fileName, mapping.getExternalPort(), fileSize),
-                            null, null);
-                } catch (IOException e) {
-                    e.printStackTrace();
+                    server.getApiInstance().sendMessage(channel,
+                            DCCUtils.buildSendMessage(mapping.getExternalIP(), fileName,
+                                    mapping.getExternalPort(), fileSize), null, null);
+                } catch (IOException | RuntimeException e) {
+                    // RuntimeException too: replies from any UPnP device on the LAN can be
+                    // malformed (missing actionList, LOCATION without port, empty external IP),
+                    // and they must lead to the reverse DCC fallback, not to a crash
+                    Log.w("DCCManager", "Port mapping failed, falling back to reverse DCC", e);
 
-                    mHandler.post(() -> Toast
-                            .makeText(mContext, R.string.error_generic, Toast.LENGTH_SHORT).show());
+                    mHandler.post(() -> Toast.makeText(mContext, R.string.error_generic,
+                            Toast.LENGTH_SHORT).show());
                     if (upload != null)
                         mServer.cancelUpload(upload);
                     if (mapping != null) {
                         try {
                             PortMapper.removePortMapping(mapping);
                         } catch (Exception e2) {
-                            Log.w("DCCManager", "Failed to remove port mapping " +
-                                    "in error handler");
-                            e2.printStackTrace();
+                            Log.w("DCCManager", "Failed to remove port mapping in error handler",
+                                    e2);
                         }
                     }
 
                     // fall back to reverse DCC
-                    upload = mServer.addReverseUpload(connectionData, channel, fileName, file);
-                    server.getApiInstance().sendMessage(channel, DCCUtils.buildSendMessage(
-                            "127.0.0.1", fileName, 0, fileSize, upload.getReverseId()),
-                            null, null);
+                    try {
+                        upload = mServer.addReverseUpload(connectionData, channel, fileName, file);
+                        server.getApiInstance().sendMessage(channel, DCCUtils.buildSendMessage(
+                                "127.0.0.1", fileName, 0, fileSize, upload.getReverseId()), null,
+                                null);
+                    } catch (RuntimeException e2) {
+                        Log.e("DCCManager", "Reverse DCC fallback failed", e2);
+                    }
                 }
             });
         } else {
             // fall back to reverse DCC
-            DCCServerManager.UploadEntry upload = mServer.addReverseUpload(
-                    connectionData, channel, fileName, file);
-            server.getApiInstance().sendMessage(channel, DCCUtils.buildSendMessage(
-                    "0.0.0.0", fileName, 0, fileSize,
-                    upload.getReverseId()),
-                    null, null);
+            DCCServerManager.UploadEntry upload = mServer.addReverseUpload(connectionData,
+                    channel, fileName, file);
+            server.getApiInstance().sendMessage(channel, DCCUtils.buildSendMessage("0.0.0.0",
+                    fileName, 0, fileSize, upload.getReverseId()), null, null);
         }
     }
 
@@ -483,6 +479,7 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
             this.mServerUUID = uuid;
             this.mServerName = serverName;
         }
+
         public UploadServerInfo(ServerConnectionSession connectionInfo) {
             this.mServerUUID = connectionInfo.getUUID();
             this.mServerName = connectionInfo.getName();
@@ -514,8 +511,8 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
         private DCCReverseClient mReverseClient;
         private Uri mDownloadedTo;
 
-        private DownloadInfo(ServerConnectionSession server, MessagePrefix sender, String fileName,
-                             long fileSize, String address, int port) {
+        private DownloadInfo(ServerConnectionSession server, MessagePrefix sender,
+                             String fileName, long fileSize, String address, int port) {
             mServerUUID = server.getUUID();
             mServerName = server.getName();
             mSender = sender;
@@ -525,8 +522,9 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
             mPort = port;
             mReverseUploadId = -1;
         }
-        private DownloadInfo(ServerConnectionSession server, MessagePrefix sender, String fileName,
-                             long fileSize, int reverseUploadId) {
+
+        private DownloadInfo(ServerConnectionSession server, MessagePrefix sender,
+                             String fileName, long fileSize, int reverseUploadId) {
             mServerUUID = server.getUUID();
             mServerName = server.getName();
             mSender = sender;
@@ -592,27 +590,27 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
         }
 
         private void createClient() throws IOException {
-            ServerConnectionSession connection = ServerConnectionManager.getInstance(mContext)
-                    .getConnection(mServerUUID);
+            ServerConnectionSession connection =
+                    ServerConnectionManager.getInstance(mContext).getConnection(mServerUUID);
             if (connection == null)
                 throw new IOException("The connection doesn't exist");
             FileChannel file;
             String downloadFileName = getUnescapedFileName().replace('/', '_');
             String ext = getFileExtension();
             Uri downloadUri = null;
-            if (mUseSystemDirectoryViaControlResolver && mDownloadDirectoryOverrideURI == null &&
-                    !mAlwaysUseFallbackDir && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (mUseSystemDirectoryViaControlResolver && mDownloadDirectoryOverrideURI == null && !mAlwaysUseFallbackDir && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 ContentValues fileContent = new ContentValues();
                 fileContent.put(MediaStore.Downloads.DISPLAY_NAME, downloadFileName);
                 fileContent.put(MediaStore.Downloads.SIZE, getFileSize());
 
-                downloadUri = mContext.getContentResolver().insert(
-                        MediaStore.Downloads.EXTERNAL_CONTENT_URI, fileContent);
-            } if (mDownloadDirectoryOverrideURI != null && !mAlwaysUseFallbackDir) {
+                downloadUri =
+                        mContext.getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, fileContent);
+            }
+            if (mDownloadDirectoryOverrideURI != null && !mAlwaysUseFallbackDir) {
                 DocumentFile dir = DocumentFile.fromTreeUri(mContext,
                         mDownloadDirectoryOverrideURI);
-                String mime = ext != null ? MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext)
-                        : null;
+                String mime = ext != null ?
+                        MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) : null;
                 if (mime == null)
                     mime = "application/octet-stream";
                 DocumentFile docFile = dir.createFile(mime, downloadFileName);
@@ -634,11 +632,11 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
                 File filePath = new File(mDownloadDirectory, downloadFileName);
                 int attempt = 1;
                 while (filePath.exists()) {
-                    filePath = new File(mDownloadDirectory, (ext != null
-                            ? downloadFileName.substring(0,
-                            downloadFileName.length() - ext.length() - 1)
-                            : downloadFileName) + " (" + attempt + ")" +
-                            (ext != null ? "." + ext : ""));
+                    filePath = new File(mDownloadDirectory, (ext != null ?
+                            downloadFileName.substring(0,
+                                    downloadFileName.length() - ext.length() - 1) :
+                            downloadFileName) + " (" + attempt + ")" + (ext != null ? "." + ext :
+                            ""));
                     attempt++;
                 }
                 file = new FileOutputStream(filePath).getChannel();
@@ -661,8 +659,8 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
                             mFileSize, mReverseUploadId);
                     connection.getApiInstance().sendMessage(mSender.getNick(), message, null, null);
                 } else {
-                    SocketChannel socket = SocketChannel.open(
-                            new InetSocketAddress(mAddress, mPort));
+                    SocketChannel socket = SocketChannel.open(new InetSocketAddress(mAddress,
+                            mPort));
                     synchronized (this) {
                         if (mCancelled)
                             throw new CancelledException();
@@ -698,11 +696,12 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
                 } catch (CancelledException e) {
                     onDownloadDestroyed(this);
                     return;
-                } catch (IOException e) {
-                    mHandler.post(() ->
-                            Toast.makeText(mContext, R.string.error_generic, Toast.LENGTH_SHORT)
-                                    .show());
-                    e.printStackTrace();
+                } catch (IOException | RuntimeException e) {
+                    // RuntimeException too: a bad peer address makes InetSocketAddress throw
+                    // IllegalArgumentException, and an uncaught exception here kills the process
+                    mHandler.post(() -> Toast.makeText(mContext, R.string.error_generic,
+                            Toast.LENGTH_SHORT).show());
+                    Log.e("DCCManager", "Failed to start the download", e);
                     onDownloadDestroyed(this);
                     return;
                 }
@@ -747,21 +746,14 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
             else
                 title = context.getString(R.string.dcc_approve_download_title,
                         getUnescapedFileName());
-            AlertDialog ret = new AlertDialog.Builder(context)
-                    .setTitle(title)
-                    .setMessage(context.getString(R.string.dcc_approve_download_body,
-                            mSender.toString(), getServerName()))
-                    .setPositiveButton(R.string.action_accept,
-                            (DialogInterface dialog, int which) -> {
-                                if (needsAskSystemDownloadsPermission())
-                                    handler.askSystemDownloadsPermission(() -> approve());
-                                else
-                                    approve();
-                            })
-                    .setNegativeButton(R.string.action_reject,
-                            (DialogInterface dialog, int which) -> reject())
-                    .setOnCancelListener((DialogInterface dialog) -> reject())
-                    .create();
+            AlertDialog ret =
+                    new AlertDialog.Builder(context).setTitle(title).setMessage(context.getString(R.string.dcc_approve_download_body, mSender.toString(), getServerName())).setPositiveButton(R.string.action_accept, (DialogInterface dialog, int which) -> {
+                if (needsAskSystemDownloadsPermission())
+                    handler.askSystemDownloadsPermission(() -> approve());
+                else
+                    approve();
+            }).setNegativeButton(R.string.action_reject,
+                            (DialogInterface dialog, int which) -> reject()).setOnCancelListener((DialogInterface dialog) -> reject()).create();
             ret.setCanceledOnTouchOutside(false);
             return ret;
         }
@@ -843,14 +835,12 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
 
 
         protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-            if (requestCode == mDownloadsPermissionRequestCode &&
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            if (requestCode == mDownloadsPermissionRequestCode && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 if (resultCode == Activity.RESULT_OK) {
                     mActivity.getContentResolver().takePersistableUriPermission(data.getData(),
-                            Intent.FLAG_GRANT_READ_URI_PERMISSION |
-                                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-                    DCCManager.getInstance(mActivity).setOverrideDownloadDirectory(
-                            data.getData(), true);
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                    DCCManager.getInstance(mActivity).setOverrideDownloadDirectory(data.getData()
+                            , true);
                     onSystemDownloadPermissionRequestFinished();
                 } else {
                     showSystemDownloadsPermissionDenialDialog();
@@ -862,9 +852,7 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
                                                @NonNull int[] grantResults) {
             if (requestCode == mStoragePermissionRequestCode) {
                 String p = Manifest.permission.WRITE_EXTERNAL_STORAGE;
-                if (ContextCompat.checkSelfPermission(mActivity, p) !=
-                        PackageManager.PERMISSION_GRANTED &&
-                        ActivityCompat.shouldShowRequestPermissionRationale(mActivity, p)) {
+                if (ContextCompat.checkSelfPermission(mActivity, p) != PackageManager.PERMISSION_GRANTED && ActivityCompat.shouldShowRequestPermissionRationale(mActivity, p)) {
                     showSystemDownloadsPermissionDenialDialog();
                 } else {
                     onSystemDownloadPermissionRequestFinished();
@@ -881,8 +869,8 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
             mPermissionRequestPending = true;
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                StorageManager manager = (StorageManager) mActivity
-                        .getSystemService(Context.STORAGE_SERVICE);
+                StorageManager manager =
+                        (StorageManager) mActivity.getSystemService(Context.STORAGE_SERVICE);
                 StorageVolume volume = manager.getPrimaryStorageVolume();
                 Intent intent = volume.createAccessIntent(Environment.DIRECTORY_DOWNLOADS);
                 intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
@@ -912,19 +900,12 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
         }
 
         private void showSystemDownloadsPermissionDenialDialog() {
-            new AlertDialog.Builder(mActivity)
-                    .setTitle(R.string.dcc_system_downloads_permission_dialog_title)
-                    .setMessage(R.string.dcc_system_downloads_permission_dialog_text)
-                    .setPositiveButton(R.string.action_ok, (DialogInterface i, int w) -> {
-                        DCCManager.getInstance(mActivity).mPreferences.edit()
-                                .putBoolean(PREF_DCC_ASKED_FOR_PERMISSION, true)
-                                .apply();
-                        onSystemDownloadPermissionRequestFinished();
-                    })
-                    .setNegativeButton(R.string.action_ask_again, (DialogInterface i, int w) -> {
-                        askSystemDownloadsPermission(null, true);
-                    })
-                    .show();
+            new AlertDialog.Builder(mActivity).setTitle(R.string.dcc_system_downloads_permission_dialog_title).setMessage(R.string.dcc_system_downloads_permission_dialog_text).setPositiveButton(R.string.action_ok, (DialogInterface i, int w) -> {
+                DCCManager.getInstance(mActivity).mPreferences.edit().putBoolean(PREF_DCC_ASKED_FOR_PERMISSION, true).apply();
+                onSystemDownloadPermissionRequestFinished();
+            }).setNegativeButton(R.string.action_ask_again, (DialogInterface i, int w) -> {
+                askSystemDownloadsPermission(null, true);
+            }).show();
         }
 
     }
@@ -940,14 +921,14 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
         @Override
         public void onFileOffered(ServerConnectionData connection, MessagePrefix sender,
                                   String fileName, String address, int port, long fileSize) {
-            Log.d("DCCManager", "File offered: " + fileName +
-                    " from " + address + ":" + port);
+            Log.d("DCCManager", "File offered: " + fileName + " from " + address + ":" + port);
             onDownloadCreated(new DownloadInfo(mServer, sender, fileName, fileSize, address, port));
         }
 
         @Override
-        public void onFileOfferedUsingReverse(ServerConnectionData connection, MessagePrefix sender,
-                                              String fileName, long fileSize, int uploadId) {
+        public void onFileOfferedUsingReverse(ServerConnectionData connection,
+                                              MessagePrefix sender, String fileName,
+                                              long fileSize, int uploadId) {
             Log.d("DCCManager", "File offered: " + fileName + " (reverse)");
             onDownloadCreated(new DownloadInfo(mServer, sender, fileName, fileSize, uploadId));
         }
@@ -962,7 +943,6 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
         void onDownloadUpdated(DownloadInfo download);
 
     }
-
 
 
     public static String getLocalIP() {
