@@ -28,7 +28,12 @@ public class TopicWhoTimeCommandHandler implements CommandHandler {
     public void handle(ServerConnectionData connection, MessagePrefix sender, String command, List<String> params,
                        Map<String, String> tags) throws InvalidMessageException {
         String who = CommandHandler.getParamWithCheck(params, 2);
-        Date when = new Date(Long.parseLong(CommandHandler.getParamWithCheck(params, 3)) * 1000L);
+        Date when;
+        try {
+            when = new Date(Long.parseLong(CommandHandler.getParamWithCheck(params, 3)) * 1000L);
+        } catch (NumberFormatException e) {
+            throw new InvalidMessageException("Invalid timestamp in a topic message", e);
+        }
         try {
             ChannelData channelData = connection.getJoinedChannelData(CommandHandler.getParamWithCheck(params, 1));
 

@@ -5,6 +5,7 @@ import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
+import java.util.logging.Logger;
 
 import io.mrarm.irc.protocol.dto.MessageInfo;
 import io.mrarm.irc.protocol.irc.InvalidMessageException;
@@ -13,11 +14,18 @@ import io.mrarm.irc.protocol.irc.ServerConnectionData;
 
 public class ServerTimeCapability extends Capability {
 
+    // java.util.logging keeps protocol/ free of Android imports; on Android it ends up in logcat
+    private static final Logger LOG = Logger.getLogger("ServerTimeCapability");
+
     private SimpleDateFormat parser;
+    // Some servers and bouncers send the timestamp without the milliseconds
+    private SimpleDateFormat parserNoMillis;
 
     public ServerTimeCapability() {
         parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
         parser.setTimeZone(TimeZone.getTimeZone("UTC"));
+        parserNoMillis = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+        parserNoMillis.setTimeZone(TimeZone.getTimeZone("UTC"));
     }
 
     @Override
@@ -32,11 +40,19 @@ public class ServerTimeCapability extends Capability {
 
     @Override
     public void processMessage(MessageInfo.Builder message, Map<String, String> tags) {
-        if (tags.containsKey("time")) {
+        String time = tags.get("time");
+        if (time == null)
+            return;
+        try {
+            message.setDate(parser.parse(time));
+        } catch (ParseException e) {
             try {
-                message.setDate(parser.parse(tags.get("time")));
-            } catch (ParseException e) {
-                throw new RuntimeException(e);
+                message.setDate(parserNoMillis.parse(time));
+            } catch (ParseException e2) {
+                // Unparsable timestamp: keep the message's own arrival time. This runs on the
+                // socket thread, so throwing here would take the whole connection down.
+                // Logged with the raw value so new server formats can be spotted and supported.
+                LOG.warning("Unsupported server-time format, using arrival time: time=" + time);
             }
         }
     }

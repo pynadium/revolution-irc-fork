@@ -15,6 +15,9 @@ public class OneCharNickPrefixParser implements NickPrefixParser {
     @Override
     public NickWithPrefix parse(ServerConnectionData connection, String nick) {
         NickPrefixList supportedNickPrefixes = connection.getSupportList().getSupportedNickPrefixes();
+        // An empty entry happens with a double space in a NAMES list
+        if (nick.isEmpty())
+            return new NickWithPrefix(nick, null);
         char firstNickChar = nick.charAt(0);
         for (char prefix : supportedNickPrefixes) {
             if (firstNickChar == prefix)

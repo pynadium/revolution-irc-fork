@@ -35,6 +35,8 @@ public class ModeCommandHandler implements CommandHandler {
                     sender.getHost(), null, null).get() : null;
 
             String target = CommandHandler.getParamWithCheck(params, 0);
+            if (target.isEmpty())
+                throw new InvalidMessageException("Empty target in a MODE message");
             boolean isChannelTarget = connection.getSupportList().getSupportedChannelTypes().contains(target.charAt(0));
             if (isChannelTarget) {
                 ChannelData channelData = connection.getJoinedChannelData(target);
@@ -65,8 +67,12 @@ public class ModeCommandHandler implements CommandHandler {
             } else if (connection.getSupportList().getSupportedNickPrefixModes().contains(c)) {
                 String nick = CommandHandler.getParamWithCheck(params, argIndex++);
                 ChannelData.Member member = getUser(connection, channelData, nick);
-                char prefix = connection.getSupportList().getSupportedNickPrefixes().get(
-                        connection.getSupportList().getSupportedNickPrefixModes().find(c));
+                NickPrefixList supportedPrefixes = connection.getSupportList().getSupportedNickPrefixes();
+                int prefixIndex = connection.getSupportList().getSupportedNickPrefixModes().find(c);
+                // A server can advertise more PREFIX modes than prefix characters
+                if (prefixIndex >= supportedPrefixes.length())
+                    throw new InvalidMessageException("PREFIX modes and prefixes do not match");
+                char prefix = supportedPrefixes.get(prefixIndex);
                 if (member != null) {
                     if (add) {
                         addMode(channelData, member, c);

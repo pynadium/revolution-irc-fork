@@ -4,6 +4,7 @@ import android.util.Log;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 
 import io.mrarm.irc.config.ChatSettings;
@@ -53,22 +54,31 @@ public class DefaultMessagePipeline implements MessagePipeline {
 
         if (channelName == null) return;
 
-        pipelineExecutor.execute(() -> {
-            final MessageId messageId;
-            try {
-                messageId = persist(channelName, message);
-            } catch (Throwable t) {
-                Log.e("MessagePipeline", "persist failed", t);
-                return;
-            }
+        try {
+            pipelineExecutor.execute(() -> {
+                final MessageId messageId;
+                try {
+                    messageId = persist(channelName, message);
+                } catch (Throwable t) {
+                    Log.e("MessagePipeline", "persist failed", t);
+                    return;
+                }
 
-            Log.d("MessagePipeline",
-                    "emit: room=" + channelName +
-                            " id=" + messageId
-            );
+                Log.d("MessagePipeline", "emit: room=" + channelName + " id=" + messageId);
 
-            messageBus.emit(channelName, message, messageId);
-        });
+                // The bus already isolates each listener, this is the second line of
+                // defence so nothing can escape the pipeline thread and kill the process.
+                try {
+                    messageBus.emit(channelName, message, messageId);
+                } catch (RuntimeException e) {
+                    Log.e("MessagePipeline", "emit failed", e);
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            // Pipeline already shut down (e.g. a zombie socket still delivering lines).
+            // Callers are on the socket thread, where only IOException is caught: drop the message.
+            Log.w("MessagePipeline", "accept() after shutdown, message dropped", e);
+        }
     }
 
     @Override

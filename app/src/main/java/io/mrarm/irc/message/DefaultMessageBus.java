@@ -1,5 +1,7 @@
 package io.mrarm.irc.message;
 
+import android.util.Log;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -10,6 +12,8 @@ import io.mrarm.irc.protocol.dto.MessageInfo;
 import io.mrarm.irc.protocol.message.MessageListener;
 
 public class DefaultMessageBus implements MessageBus {
+    private static final String TAG = "DefaultMessageBus";
+
     private final Map<String, List<MessageListener>> channelListeners = new HashMap<>();
     private final List<MessageListener> globalListeners = new ArrayList<>();
 
@@ -64,12 +68,23 @@ public class DefaultMessageBus implements MessageBus {
 
         if (channelCopy != null) {
             for (MessageListener l : channelCopy) {
-                l.onMessage(channelName, message, messageId);
+                dispatch(l, channelName, message, messageId);
             }
         }
 
         for (MessageListener lst : globalCopy) {
-            lst.onMessage(channelName, message, messageId);
+            dispatch(lst, channelName, message, messageId);
+        }
+    }
+
+    // emit() runs on the "MessagePipeline" thread, where an uncaught exception kills the
+    // process. One failing listener must not stop the remaining ones or the pipeline.
+    private static void dispatch(MessageListener listener, String channelName,
+                                 MessageInfo message, MessageId messageId) {
+        try {
+            listener.onMessage(channelName, message, messageId);
+        } catch (RuntimeException e) {
+            Log.e(TAG, "MessageListener threw while handling a message in room=" + channelName, e);
         }
     }
 }

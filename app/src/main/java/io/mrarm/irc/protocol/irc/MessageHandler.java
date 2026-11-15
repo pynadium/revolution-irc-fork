@@ -24,6 +24,8 @@ public class MessageHandler {
         if (line.charAt(0) == '@') {
             // ircv3 tags
             int tagsEndI = line.indexOf(' ');
+            if (tagsEndI == -1)
+                throw new InvalidMessageException();
             String[] rawTags = line.substring(1, tagsEndI).split(";");
             line = line.substring(tagsEndI + 1);
             int vi;
@@ -82,7 +84,10 @@ public class MessageHandler {
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
             if (c == '\\') {
-                int cc = text.charAt(++i);
+                // A lone backslash at the end of the value has nothing to escape: drop it
+                if (++i >= text.length())
+                    break;
+                int cc = text.charAt(i);
                 switch (cc) {
                     case ':':
                         outpBuilder.append(';');

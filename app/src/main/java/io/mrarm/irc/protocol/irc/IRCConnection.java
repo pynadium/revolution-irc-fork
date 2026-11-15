@@ -134,6 +134,16 @@ public class IRCConnection extends ServerConnectionApi {
         return new String(buf, 0, i, charset);
     }
 
+    private void addUnhandledStatusMessage(String command) {
+        try {
+            getServerConnectionData().getServerStatusData().addMessage(new StatusMessageInfo(
+                    null, new Date(), StatusMessageInfo.MessageType.UNHANDLED_MESSAGE, command));
+        } catch (RuntimeException e) {
+            // Reporting an unhandled line must never be what kills the read loop.
+            Log.e(TAG, "addUnhandledStatusMessage() failed", e);
+        }
+    }
+
     // TODO check IOException handling here. Something's seems off
     private void handleInput() {
         try {
@@ -148,8 +158,13 @@ public class IRCConnection extends ServerConnectionApi {
                     // MessageCommandHandler is invoked here
                     inputHandler.handleLine(command);
                 } catch (InvalidMessageException e) {
-                    getServerConnectionData().getServerStatusData().addMessage(new StatusMessageInfo(
-                            null, new Date(), StatusMessageInfo.MessageType.UNHANDLED_MESSAGE, command));
+                    addUnhandledStatusMessage(command);
+                } catch (RuntimeException e) {
+                    // Catching RuntimeException. An uncaught exception on any thread kills the Android process.
+                    // A malformed line (or a buggy handler) must cost us that one line, not the whole app.
+                    // The line text is deliberately not logged here.
+                    Log.e(TAG, "handleInput() unexpected exception while handling a line, skipping it", e);
+                    addUnhandledStatusMessage(command);
                 }
             }
         } catch (IOException e) {

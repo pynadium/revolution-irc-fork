@@ -47,6 +47,9 @@ public class ISupportCommandHandler implements CommandHandler {
     }
 
     private void handle(ServerSupportList supportList, String param, String value, boolean remove) {
+        // Every parameter handled below needs a value; a bare "PREFIX" or "-PREFIX" has none
+        if (value == null)
+            return;
         if (param.equals(PARAM_PREFIX_LIST)) {
             if (value.startsWith("(")) {
                 int iof = value.indexOf(')');
@@ -60,6 +63,9 @@ public class ISupportCommandHandler implements CommandHandler {
             supportList.setSupportedChannelTypes(new ModeList(value));
         } else if (param.equals(PARAM_CHANMODES)) {
             String[] modes = value.split(",", -1);
+            // CHANMODES is four comma-separated groups; keep the previous value if malformed
+            if (modes.length < 4)
+                return;
             supportList.setSupportedChannelModes(new ModeList(modes[0]), new ModeList(modes[1]), new ModeList(modes[2]),
                     new ModeList(modes[3]));
         }
