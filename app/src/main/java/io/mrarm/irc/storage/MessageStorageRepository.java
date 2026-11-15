@@ -109,28 +109,27 @@ public class MessageStorageRepository {
                                List<Integer> excludeTypes,
                                Consumer<List<MessageEntity>> callback) {
         AppAsyncExecutor.io(() -> dao().loadBefore(serverId, channel, beforeId, limit, excludeTypes),
-                callback);
+                new ArrayList<>(), callback);
     }
 
     public void loadNewerAsync(UUID serverId, String channel, long afterId, int limit,
                                List<Integer> excludeTypes,
                                Consumer<List<MessageEntity>> callback) {
         AppAsyncExecutor.io(() -> dao().loadAfter(serverId, channel, afterId, limit, excludeTypes),
-                callback);
+                new ArrayList<>(), callback);
     }
 
     public void loadRecentAsync(UUID serverId, String channel, int limit,
                                 List<Integer> excludeTypes,
                                 Consumer<MessageList> uiCallback) {
-        // AppAsyncExecutor delivers null when the query throws: hand the UI an empty list instead
+        // When the query throws, the UI gets an empty list (the fallback)
         AppAsyncExecutor.io(() -> toMessageListFromRoom(dao().loadRecent(serverId, channel, limit, excludeTypes)),
-                list -> uiCallback.accept(list != null ? list : toMessageListFromRoom(null))
-        );
+                toMessageListFromRoom(null), uiCallback);
     }
 
     // Log viewer: filter discovery + filtered paging
     public void getDistinctServerIdsAsync(Consumer<List<UUID>> callback) {
-        AppAsyncExecutor.io(() -> dao().getDistinctServerIds(), callback);
+        AppAsyncExecutor.io(() -> dao().getDistinctServerIds(), new ArrayList<>(), callback);
     }
 
     public void getDistinctChannelsAsync(UUID serverId, Consumer<List<String>> callback) {
@@ -145,18 +144,18 @@ public class MessageStorageRepository {
             }
             result.sort(String::compareToIgnoreCase);
             return result;
-        }, callback);
+        }, new ArrayList<>(), callback);
     }
 
     public void getDistinctSendersAsync(UUID serverId, String channel, Consumer<List<String>> callback) {
-        AppAsyncExecutor.io(() -> dao().getDistinctSenders(serverId, channel), callback);
+        AppAsyncExecutor.io(() -> dao().getDistinctSenders(serverId, channel), new ArrayList<>(), callback);
     }
 
     public void loadFilteredBeforeAsync(UUID serverId, String channel, String sender, long beforeId,
                                          int limit, List<Integer> excludeTypes,
                                          Consumer<List<MessageEntity>> callback) {
         AppAsyncExecutor.io(() -> dao().loadFilteredBefore(serverId, channel, sender, beforeId, limit, excludeTypes),
-                callback);
+                new ArrayList<>(), callback);
     }
 
     /**
@@ -212,7 +211,7 @@ public class MessageStorageRepository {
 
             return combined;
 
-        }, callback);
+        }, new ArrayList<>(), callback);
     }
 
     public MessageList toMessageListFromRoom(List<MessageEntity> entities) {

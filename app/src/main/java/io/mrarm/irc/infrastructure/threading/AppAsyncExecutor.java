@@ -48,17 +48,21 @@ public class AppAsyncExecutor {
     /**
      * Generic variant: run background work that returns a value, then deliver result on UI thread.
      *
+     * <p>If the work throws or returns {@code null}, the callback receives {@code fallback}
+     * instead, so UI code never has to handle a {@code null} result. There is deliberately no
+     * overload without a fallback.
+     *
      * @return a Future<?> representing the background task.
      */
-    public static <T> Future<?> io(Supplier<T> work, Consumer<T> uiCallback) {
+    public static <T> Future<?> io(Supplier<T> work, T fallback, Consumer<T> uiCallback) {
         return IO.submit(() -> {
             T result = null;
             try {
                 result = work.get();
             } catch (Exception e) {
-                Log.e("Async", "Async work failed", e);
+                Log.e("Async", "Async work failed, delivering the fallback", e);
             }
-            final T finalResult = result;
+            final T finalResult = result != null ? result : fallback;
             if (uiCallback != null)
                 MAIN.post(() -> uiCallback.accept(finalResult));
             return null;
